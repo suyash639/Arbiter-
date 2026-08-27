@@ -168,6 +168,16 @@ def _require_client(store: DataStore, client_id: str) -> dict:
         raise UnknownClientError(client_id) from None
 
 
+def _mask_value(val: str | None) -> str | None:
+    """Mask a sensitive value, replacing the prefix with **** and leaving the last 4 characters."""
+    if not val:
+        return None
+    val_str = str(val).strip()
+    if len(val_str) <= 4:
+        return "****" + val_str
+    return "****" + val_str[-4:]
+
+
 def _parse_date(value: Any, *, context: str = "") -> datetime.date:
     """Parse an ISO-8601 date string to ``datetime.date``.
 
@@ -317,6 +327,37 @@ def get_client(store: DataStore, client_id: str) -> dict:
         "annual_income_band": kyc.get("annual_income_band"),
         "account_count": len(c.get("accounts", [])),
         "citations": [client_id],
+    }
+
+
+def get_client_kyc_profile(store: DataStore, client_id: str) -> dict:
+    """Return a detailed, secure, and masked KYC/profile view of the client.
+
+    Masks PAN and bank account numbers.
+    """
+    c = _require_client(store, client_id)
+    kyc = c.get("kyc", {})
+    bank = kyc.get("bank_account", {})
+    emp = kyc.get("employment", {})
+
+    kyc_id = kyc.get("id")
+
+    return {
+        "client_id": client_id,
+        "name": c.get("name"),
+        "kyc_id": kyc_id,
+        "pan": _mask_value(kyc.get("pan")),
+        "kyc_status": kyc.get("kyc_status"),
+        "risk_profile": kyc.get("risk_profile"),
+        "date_of_birth": kyc.get("date_of_birth"),
+        "address": kyc.get("address"),
+        "annual_income_band": kyc.get("annual_income_band"),
+        "bank_name": bank.get("bank"),
+        "bank_account_number": _mask_value(bank.get("account_number")),
+        "bank_ifsc": bank.get("ifsc"),
+        "employer": emp.get("employer"),
+        "occupation": emp.get("occupation"),
+        "citations": [kyc_id] if kyc_id else [client_id],
     }
 
 
@@ -988,3 +1029,52 @@ def detect_position_snapshot_conflict(
         "transaction_ids": sym_txn_ids,
         "citations": citation_list,
     }
+
+
+def get_client_notes(store: DataStore, client_id: str) -> list[dict]:
+    """Retrieve the list of free-text notes for *client_id*.
+
+    Returns
+    -------
+    list of dict with keys:
+        id, date, author, text, citations
+    """
+    c = _require_client(store, client_id)
+    notes = c.get("notes", [])
+    result = []
+    for n in notes:
+        nid = n.get("id")
+        result.append({
+            "id": nid,
+            "date": n.get("date"),
+            "author": n.get("author"),
+            "text": n.get("text"),
+            "citations": [nid] if nid else [client_id]
+        })
+    return result
+
+
+def get_transaction_memos(store: DataStore, client_id: str) -> list[dict]:
+    """Retrieve all transactions containing a memo or description for *client_id*.
+
+    Returns
+    -------
+    list of dict with keys:
+        id, date, type, symbol, memo, citations
+    """
+    c = _require_client(store, client_id)
+    txns = c.get("transactions", [])
+    result = []
+    for t in txns:
+        memo = t.get("memo") or t.get("description")
+        if memo:
+            tid = t.get("id")
+            result.append({
+                "id": tid,
+                "date": t.get("date"),
+                "type": t.get("type"),
+                "symbol": t.get("symbol"),
+                "memo": memo,
+                "citations": [tid] if tid else [client_id]
+            })
+    return result

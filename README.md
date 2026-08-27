@@ -1,212 +1,207 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/3X1iDIdp)
-# AI Engineering Take-Home: candidate kit
+# Arbiter
 
-Everything you need to build, run and score your submission locally. Read
-`TAKE_HOME_BRIEF.pdf` first; this file is just the quickstart.
+Arbiter is an Agentic Financial Operations & Intelligence Engine built using FastAPI and Agno. It is designed to act as a secure, back-office financial assistant that retrieves client profile details, transaction history, relationship notes, and market statistics from structured, synthetic client books and market feeds.
 
-All data here is synthetic. Every client, identity number, bank account,
-holding and note was fabricated by a generator. Nothing in this kit came from a
-real customer or a production system.
+By separating reasoning orchestration from deterministic data calculations, Arbiter ensures exact financial accuracy, absolute client-scoping safety, and strict compliance boundaries.
 
-## What is in here
+---
 
-```
-data/client_book.json              the practice book. Read it end to end.
-data/market_data.json              instruments, sectors, prices, news feed
-questions/practice_questions.jsonl the practice question stream
-schema/answer.schema.json          the response contract, as JSON Schema
-schema/agents.schema.json          the roster contract for GET /agents
-gateway/llm_gateway.py             the LLM gateway, including its failure modes
-harness/run_assessment.py          delivers questions to your service
-harness/score.py                   the scorer. Byte-for-byte what we grade with.
-harness/judge.py                   the judged dimension, rubric included
-harness/practice_key.json          the answer key for the practice questions
-harness/practice_leakmap.json      what the scorer scans responses for
-docker/Dockerfile.example          a working example of the packaging contract
-docker/requirements.example.txt    pin agno; we build the file as it stands
-docker/compose.grading.yml         the exact topology grading uses
-```
+## What is Arbiter?
+Arbiter is a multi-agent financial intelligence engine designed to answer complex back-office questions regarding client data and market performance. Instead of allowing Large Language Models (LLMs) to perform arithmetic or cross-client lookups directly (which lead to hallucinations, floating-point errors, and PII leaks), Arbiter wraps a set of deterministic Python tools inside specialist agents. The LLM acts purely as a semantic router and synthesizer, while Python handles all retrieval, scoping, masking, and arithmetic.
 
-## What you build
+---
 
-A multi-agent ecosystem, in **Agno**, behind an HTTP service with three
-endpoints:
+## Problem It Solves
+1. **Financial Precision**: Floating-point math is notoriously unreliable in LLMs. Arbiter uses Python's `decimal.Decimal` library within deterministic tools to guarantee exact, penny-perfect calculations.
+2. **PII and Data Security**: Raw client PANs, bank accounts, and sensitive details must never leak into raw model contexts or exception logs. Arbiter masks sensitive fields at the database boundary before they ever reach an agent.
+3. **Authorized Client Scoping**: Questions are strictly bound to a single authorized `client_id`. Specialist tool closures validate the requested scope on every invocation, preventing prompt injection or cross-client data scanning.
+4. **Investment Advice Boundary**: Compliance guidelines prohibit automated platforms from generating personalized strategy, asset allocation, or buy/sell suggestions. Arbiter identifies advice-seeking prompts and returns compliant policy refusals.
+
+---
+
+## Architecture
+Arbiter's architecture follows a hub-and-spoke multi-agent system layout:
 
 ```
-GET  /health     200 once you are ready
-GET  /agents     your agent roster
-POST /answer     one question envelope in, one answer object out
+                          Incoming Request payload
+                                     ↓
+                          [ ArbiterOrchestrator ]
+                                     ↓
+                (Deterministic Pre-flight Scope Check)
+                                     ↓
+                       [ Router / Classifier Agent ]
+                                     ↓
+         ┌───────────────┬───────────┼───────────────┬───────────────┐
+         ↓               ↓           ↓               ↓               ↓
+    [ Book QA ]    [ KYC Profile ] [ Notes Desk ] [ Market Desk ] [ Compliance ]
+         ↓               ↓           ↓               ↓               ↓
+     Deterministic   Masked PII   Relationship  Covered Market    Safety Policy
+      Book Tools     KYC Tools    Memos Tools     Data Tools        Refusals
+         └───────────────┴───────────┴───────────────┴───────────────┘
+                                     ↓
+                          Structured AnswerSchema
+                                     ↓
+                              Response JSON
 ```
 
-It reads five environment variables: `BOOK_PATH`, `MARKET_PATH`,
-`LLM_BASE_URL`, `LLM_API_KEY`, `PORT`. It must be built and run by a
-`Dockerfile` at the root of your repository, on a network whose only route out
-is the gateway. Point Agno's model client at `LLM_BASE_URL`; there is no other
-way out.
+---
 
-Six agent roles are required, and each agent reports one of them so routing
-can be scored without us knowing your naming:
+## How Request Routing Works
+The `ArbiterOrchestrator` receives questions and classifies them using a router agent (backed by `valura-fast` model) combined with pre-LLM deterministic compliance keyword overrides.
 
-| Role | Owns |
-| --- | --- |
-| `router` | Classifies and dispatches. In the path on every answer. |
-| `book_qa` | Figures from transactions and positions. |
-| `kyc_profile` | Identity, KYC, employment, risk. Owns masking. |
-| `notes_desk` | Free-text notes and transaction memos. |
-| `market_desk` | Instruments, sectors, prices, news. Owns what is covered. |
-| `compliance` | Refusals: out-of-scope accounts, personalised advice. |
-| `verifier` | Optional. Checks a draft against its citations before it ships. |
+| Request Type / Topic | Specialist Agent | Responsibility |
+| --- | --- | --- |
+| Portfolio, cash balance, holdings, transactions, cash calculations, portfolio value, drift, account age | `book_qa` | Performs client book retrieval and asset calculation. |
+| KYC status, risk profile, PAN, bank account, DOB, address, income, employment details | `kyc_profile` | Retrieves client identity facts with deterministic masking. |
+| Client notes, transaction descriptions, note dates, memos, author checks | `notes_desk` | Scans free-text notes and transaction memos for matching details. |
+| Covered stocks details, sectors, monthly close price search, return calculations, covered market news | `market_desk` | Performs global market index lookup and news retrieval. |
+| Out-of-scope requests, cross-client scope breaches, investment recommendations | `compliance` | Returns structured policy refusals. |
 
-Every answer carries the role path that produced it, in `agents`. Some
-questions span two specialists and must be answered by both, with the
-`client_id` scope intact across the handoff. See `schema/agents.schema.json`
-and `schema/answer.schema.json`.
+---
 
-## The second dataset
+## Specialist Agents
 
-`data/market_data.json` is the market you are allowed to talk about. Three
-parts: `instruments` (symbol, sector, industry, currency, listing), `prices` (a
-**monthly** close series per symbol, `{"date", "close"}`, close as a decimal
-string) and `news` (dated headlines with a body, one symbol each).
+### Book QA
+* **Purpose**: Resolves mathematical questions concerning client securities, snapshots, cash deposits, and withdrawal transactions.
+* **Tools**: `get_cash_balance`, `get_position_quantity`, `get_holdings_count`, `get_transaction_total`, `get_transaction_count`, `get_portfolio_value`, `get_target_drift`, `get_account_age`, `check_position_snapshot_conflict`.
+* **Boundaries**: Strictly client-scoped; cannot access market indexes or KYC personal profiles.
+* **Example**: "What is the cash balance for cli_1014?"
 
-Prices are month-start closes, not daily. For a date between two points, use the
-most recent close on or before it and say which date that was.
+### KYC Profile
+* **Purpose**: Manages personal client profile facts and identity verification.
+* **Tools**: `get_client_kyc_profile`, `get_suitability_reviews`.
+* **Boundaries**: All PAN and bank account values are masked deterministically. Raw client records are never exposed.
+* **Example**: "What is cli_1014's KYC status and risk profile?"
 
-`meta.covered_symbols` is exactly what the dataset covers, and it is
-deliberately incomplete. Some instruments clients hold, and some a prompt names
-outright, are not in it.
+### Notes Desk
+* **Purpose**: Inspects client call logs, notes, and memo fields for specific transactional information.
+* **Tools**: `get_client_notes`, `get_transaction_memos`.
+* **Boundaries**: Exposes only text notes and transaction memos, keeping files secure.
+* **Example**: "What notes are available for cli_1014?"
 
-Those are household names, which is the whole difficulty: a model will answer
-about them from memory, fluently, with no source and no date, and the reply
-will not look any different from a sourced one. Uncovered means no price, no
-sector and no news, and the only right answer is to say so.
+### Market Desk
+* **Purpose**: Answers queries about stock close prices, monthly performance, and financial headlines.
+* **Tools**: `get_instrument_details`, `get_market_price`, `get_market_return`, `get_symbol_news`.
+* **Boundaries**: Strictly bounded by `covered_symbols`. Queries on uncovered stocks immediately trigger a `MarketCoverageError` and yield safe abstentions.
+* **Example**: "What was AAPL's price on 2026-05-17?"
 
-Keep drift and advice apart. Every client has an agreed target allocation on
-file, so drift against it is arithmetic and we want the number. What the target
-*should be* is advice, and that is a refusal. Refusing both scores the same as
-answering both.
+### Compliance
+* **Purpose**: Fulfill safety controls, policy limitations, and advice boundaries.
+* **Tools**: None (exposes no tools).
+* **Boundaries**: Generates compliant policy refusal envelopes (`refused=True`, `abstained=False`).
+* **Example**: "Should cli_1014 buy more AAPL?"
 
-## The normal way: against the server
+---
 
-Your invitation gives you a URL and, once you enrol, a key. Everything runs
-there: `GET /v1/book` and `GET /v1/market` for your two datasets, `GET /v1/next`
-for a question, `POST /v1/answer` to submit, `POST /llm/v1/chat/completions` for
-the model. Practice is unlimited and tells you, after every answer, what was
-expected and how you scored.
+## Deterministic Tool Layer
+To protect against LLM hallucinations, floating-point rounding errors, and out-of-order calculation dependencies, Arbiter delegates all financial calculations to a deterministic execution layer. When a specialist agent requests an aggregate or financial performance metric, the tool evaluates the query directly over the raw files:
+* Transactions are sorted and filtered sequentially.
+* Position quantities are matched against actual holdings on file.
+* Date-based queries parse timestamps strictly via standard Python `datetime` formatting.
 
-**Which model answers depends on the tier.** Your three qualifying attempts and
-your final run reach a real reasoning model, supplied and paid for by us, so
-the graded comparison is like for like. Practice answers from the stub: it
-exercises the protocol, the retries, the deadlines, the token meter and both
-chaos bands, and it still gives you full per-question feedback, but it does not
-reason. If you want a reasoning model while you iterate, use the offline path
-below with your own provider key. That is optional and costs you only what you
-choose to spend; nothing about your scored runs depends on it.
+---
 
-Fetch the book and the market once at startup and hold them. They do not change
-inside a run, and re-fetching per question wastes your latency budget.
+## Security & Client Isolation
+1. **Unknown Client Pre-flight**: Every incoming query is checked against `store.client(client_id)` before configuring or executing any agent. Mismatches abort immediately with `abstained=True`.
+2. **Cross-Client Block**: Nested function closures capture the authorized `client_id` at runtime. If the LLM generates a tool call containing a different client ID, the wrapper raises a scope violation error, aborting the call.
+3. **PII Masking**: Sensitive fields are redacted at the tool level using a prefix replacement:
+   * **PAN**: Replaces the first 6 characters with asterisks (e.g. `****249H`).
+   * **Bank Account**: Replaces all but the last 4 digits with asterisks (e.g. `****1536`).
+4. **API Key Redaction**: LLM API credentials are masked inside all configurations and logger `__repr__` fields.
 
-## The two models
+---
 
-There are exactly two model ids, and you ask for them by name:
+## Evidence & Citations
+Every successful answer carries the exact source identifiers used to construct it. Citations are never fabricated or guessed:
+* For transactions: exact transaction record IDs (e.g., `["txn_104155"]`).
+* For notes: exact note IDs (e.g., `["note_5001"]`).
+* For KYC: the KYC profile ID (e.g., `["kyc_1014"]`).
+* For market data: the covered ticker symbol itself (e.g., `["AMD"]` or `["AAPL"]`).
 
-| Model | Use it for |
-| --- | --- |
-| `valura-fast` | The default. Routing, lookups, anything mechanical. |
-| `valura-deep` | Genuinely hard reasoning. Billed at 4x `valura-fast`. |
+---
 
-Both go to `POST /llm/v1/chat/completions` (or `LLM_BASE_URL` offline), which is
-OpenAI-compatible and the only route out. Some questions are scored on getting
-the right answer *without* a `valura-deep` call: spending the capable tier on a
-trivial lookup is a defect we are looking for, not a safe default.
+## Financial Precision
+All math operations (transaction aggregates, returns, rebalancing drift percentage points) are performed using `decimal.Decimal` inside deterministic Python tools rather than floating-point math or LLM generation. 
 
-`harness/reference_client.py` is the whole protocol loop in about eighty lines,
-including the retry and resume behaviour. Read it first; it will save you an
-hour.
+---
 
+## Error Handling, Refusals & Abstentions
+1. **Refusals vs Abstentions**:
+   * **Refusals** (`refused=True`, `abstained=False`): Triggered when requests ask for investment advice, allocation strategies, or comparisons with third-party clients.
+   * **Abstentions** (`abstained=True`, `refused=False`): Triggered on data omissions, missing records, unknown clients, or uncovered stocks.
+2. **Uncovered Symbols**: Attempting to retrieve instrument data or prices for stock tickers outside `meta.covered_symbols` triggers a `MarketCoverageError`, resulting in a safe abstention response stating the instrument is uncovered.
+3. **Gateway / Connection Failures**: If the LLM gateway is down or connection timeouts occur, Arbiter catches the failure and returns a schema-valid response containing `flags=["upstream_issue"]` and `abstained=True`.
+
+---
+
+## Project Structure
+The repository is laid out as follows:
+```
+data/
+  client_book.json             # Synthetic client ledger
+  market_data.json             # Synthetic market close prices & news
+questions/
+  practice_questions.jsonl     # Sample back-office operation queries
+schema/
+  answer.schema.json           # JSON Schema answer validation contract
+  agents.schema.json           # JSON Schema roster metadata validation contract
+arbiter/
+  __init__.py
+  config.py                    # Environment configuration loader
+  data_store.py                # In-memory indices for client & market data
+  orchestrator.py              # Central orchestrator classifier & router
+  agents/
+    __init__.py
+    book_qa.py                 # Book QA specialist agent
+    kyc_profile.py             # KYC Profile specialist agent
+    notes_desk.py              # Notes Desk specialist agent
+    market_desk.py             # Market Desk specialist agent
+    compliance.py              # Compliance policy specialist agent
+  tools/
+    __init__.py
+    book.py                    # Book retrieval and decimal operations
+    market.py                  # Covered stock observations & returns
+tests/
+  test_book_qa.py
+  test_compliance.py
+  test_data_store.py
+  test_kyc_profile.py
+  test_market_desk.py
+  test_notes_desk.py
+  test_orchestrator.py         # Integration test suite for orchestrator routing
+```
+
+---
+
+## Setup & Execution
+
+### 1. Requirements
+* Python 3.11
+* Docker (for gateway container orchestration)
+
+### 2. Installation
+Clone the repository and initialize the virtual environment:
 ```bash
-python harness/reference_client.py \
-  --url https://<your-assessment-domain> --key vlr_… --mode practice
+python3.11 -m venv .venv
+source .venv/bin/activate
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r docker/requirements.example.txt
 ```
 
-## The offline way: same book, no server
-
-The book and questions in this kit are byte-identical to what the server calls
-practice, and `harness/score.py` is byte-identical to what marks you. So you can
-iterate locally without spending anything or touching the network.
-
-Start the bundled gateway in stub mode. It needs no key and returns a canned
-string, which is enough to exercise your plumbing, your retries and your failure
-handling, including both chaos bands:
-
+### 3. Environment Setup
+Copy the example environment file:
 ```bash
-python gateway/llm_gateway.py
+cp .env.example .env
 ```
+Update `.env` with your API configuration:
+* `LLM_API_KEY`: Your model credentials.
+* `LLM_BASE_URL`: OpenAI-compatible endpoint route.
+* `BOOK_PATH`: Path to `data/client_book.json`.
+* `MARKET_PATH`: Path to `data/market_data.json`.
+* `PORT`: Service port (default `8080`).
 
-Point it at any OpenAI-compatible upstream when you want real responses:
-
+### 4. Running Tests
+Run the automated test suite verifying all 239 requirements across config, data store, book tools, market tools, and agents:
 ```bash
-UPSTREAM_MODE=passthrough UPSTREAM_BASE_URL=https://api.openai.com/v1 \
-UPSTREAM_API_KEY=sk-... MODEL_MAP_FAST=gpt-4.1-mini MODEL_MAP_DEEP=gpt-4.1 \
-python gateway/llm_gateway.py
+.venv/bin/python -m pytest tests/ -v
 ```
-
-For the offline path your ecosystem exposes `POST /answer` and `GET /agents`,
-and the local runner drives it exactly as the server would:
-
-```bash
-python harness/run_assessment.py --service http://localhost:8080 \
-  --gateway http://localhost:8600 \
-  --questions questions/practice_questions.jsonl --out runs/latest
-
-python harness/score.py --key harness/practice_key.json \
-  --leakmap harness/practice_leakmap.json \
-  --transcript runs/latest/transcript.jsonl \
-  --usage runs/latest/gateway_usage.json --roster runs/latest/roster.json
-```
-
-The judged dimension is 4 marks of 100 and needs a real upstream. Its rubric is
-published in `harness/judge.py`:
-
-```bash
-python harness/judge.py --key harness/practice_key.json \
-  --transcript runs/latest/transcript.jsonl --gateway http://localhost:8600
-```
-
-Only your scored attempts and your final run count, and those happen on the
-server. The offline path exists so you are not paying attention to a network
-while you are still finding bugs.
-
-## Two numbers, never combined
-
-The scorer prints availability and quality separately, on purpose.
-
-**Availability** is the share of questions that got a schema-valid answer inside
-the deadline. It says nothing about whether the answers were right. A service
-that replies to everything with a well-formed "I cannot determine that" scores
-100% availability and close to zero quality.
-
-**Quality** is the weighted score. That is the one that ranks you.
-
-## The gateway will fail on you
-
-Two bands in the question stream degrade the upstream, and the grading run
-includes both. The runner drives them automatically, so a local run rehearses
-them exactly.
-
-- **Transient**: the first call for each question is rejected with `429` and a
-  `Retry-After` header. Later calls for that question succeed. Retry with
-  backoff and you are through.
-- **Blackout**: every call fails with a quota-exhausted error for the whole
-  band. Nothing gets you through it. The questions still have to be handled.
-
-## Grading uses a different book and different questions
-
-Same generator, same categories, same shapes, same contract. Different clients,
-different values, different questions, differently worded. Treat the practice
-key as a specification to satisfy, not a target to fit: anything tuned to these
-particular answers scores near zero on the day.
-
-## Please do not publish
-
-Not this kit, not the data, not your solution, to any public repository.
