@@ -82,7 +82,7 @@ class ArbiterOrchestrator:
 
         # Agno Agent configured to classify request
         model = OpenAIChat(
-            id="valura-fast",
+            id=self.config.llm_model,
             base_url=self.config.llm_base_url,
             api_key=self.config.llm_api_key,
         )

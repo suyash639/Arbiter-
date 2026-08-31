@@ -13,3 +13,5 @@ node_modules/
 *.egg-info/
 dist/
 logs/
+evals/reports/*.json
+!evals/reports/.gitkeep

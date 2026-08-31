@@ -325,8 +325,9 @@ class BookQAAgent:
 
         # --- 3. Instantiate model and agent ---
         # OpenAI-compatible gateway setup using config
+        chosen_model = model_id if (model_id and model_id != "valura-fast") else self.config.llm_model
         model = OpenAIChat(
-            id=model_id,
+            id=chosen_model,
             base_url=self.config.llm_base_url,
             api_key=self.config.llm_api_key,
         )

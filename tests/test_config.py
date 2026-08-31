@@ -106,3 +106,34 @@ class TestConfigFromEnv:
         cfg = Config.from_env()
         assert "super-secret-key-xyz" not in repr(cfg)
         assert "<REDACTED>" in repr(cfg)
+
+    def test_from_env_gemini_provider(self, monkeypatch):
+        monkeypatch.setenv("LLM_PROVIDER", "gemini")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret-123")
+        monkeypatch.chdir(Path(__file__).parent.parent)
+        cfg = Config.from_env()
+        assert cfg.llm_provider == "gemini"
+        assert cfg.llm_base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+        assert cfg.llm_api_key == "gemini-secret-123"
+        assert cfg.llm_model == "gemini-2.0-flash"
+        assert "gemini-secret-123" not in repr(cfg)
+
+    def test_from_env_gemini_custom_model(self, monkeypatch):
+        monkeypatch.setenv("LLM_PROVIDER", "gemini")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-secret-456")
+        monkeypatch.setenv("LLM_MODEL", "gemini-1.5-flash")
+        monkeypatch.chdir(Path(__file__).parent.parent)
+        cfg = Config.from_env()
+        assert cfg.llm_provider == "gemini"
+        assert cfg.llm_model == "gemini-1.5-flash"
+
+    def test_from_env_google_api_key_detection(self, monkeypatch):
+        monkeypatch.delenv("LLM_PROVIDER", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.setenv("GOOGLE_API_KEY", "google-secret-789")
+        monkeypatch.chdir(Path(__file__).parent.parent)
+        cfg = Config.from_env()
+        assert cfg.llm_provider == "gemini"
+        assert cfg.llm_api_key == "google-secret-789"
+        assert cfg.llm_base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+
