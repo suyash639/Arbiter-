@@ -91,15 +91,24 @@ class TestOrchestratorConstruction:
 # SPECIALIST ROUTING
 # ---------------------------------------------------------------------------
 
+def _make_orch_mock_create(router_role: str, specialist_resp: str):
+    def _create(*args, **kwargs):
+        kw_str = str(kwargs)
+        if "RouteClassification" in kw_str or "coordinator agent" in kw_str:
+            return make_mock_completion(RouteClassification(specialist=router_role).model_dump_json())
+        return make_mock_completion(specialist_resp)
+    return _create
+
+
+
+
 class TestOrchestratorRouting:
-    def test_routing_to_specialists(self, store, config):
+    def test_routing_to_specialists(self, store, config, monkeypatch):
         """Verifies routing logic dispatches to appropriate specialist agents."""
-        orch = ArbiterOrchestrator(store, config)
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
 
         # 1. Book route classification mock
-        mock_classification = RouteClassification(specialist="book_qa").model_dump_json()
         mock_book_resp = BookAnswerSchema(
             question_id="q_orch_1",
             answer="Balance is 100 USD",
@@ -109,26 +118,22 @@ class TestOrchestratorRouting:
             citations=["client_id"]
         ).model_dump_json()
 
-        mock_client.chat.completions.create.side_effect = [
-            make_mock_completion(mock_classification),
-            make_mock_completion(mock_book_resp)
-        ]
+        mock_client.chat.completions.create.side_effect = _make_orch_mock_create("book_qa", mock_book_resp)
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_1",
-                "client_id": "cli_1014",
-                "prompt": "What is the cash balance for cli_1014?"
-            })
-            assert res["agents"] == ["router", "book_qa"]
-            assert res["answer_value"] == "100.00"
-
-    def test_advice_deterministic_override(self, store, config):
-        """Verifies investment advice is routed to compliance immediately via deterministic overrides."""
         orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_1",
+            "client_id": "cli_1014",
+            "prompt": "What is the cash balance for cli_1014?"
+        })
+        assert res["agents"] == ["router", "book_qa"]
+        assert res["answer_value"] == "100.00"
+
+    def test_advice_deterministic_override(self, store, config, monkeypatch):
+        """Verifies investment advice is routed to compliance immediately via deterministic overrides."""
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
 
@@ -143,17 +148,17 @@ class TestOrchestratorRouting:
 
         mock_client.chat.completions.create.return_value = make_mock_completion(mock_compliance_resp)
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_2",
-                "client_id": "cli_1014",
-                "prompt": "Should cli_1014 buy more AAPL?"
-            })
-            assert res["agents"] == ["router", "compliance"]
-            assert res["refused"] is True
+        orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_2",
+            "client_id": "cli_1014",
+            "prompt": "Should cli_1014 buy more AAPL?"
+        })
+        assert res["agents"] == ["router", "compliance"]
+        assert res["refused"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -198,13 +203,11 @@ class TestOrchestratorContracts:
         """API key is never exposed in the configuration repr."""
         assert "test-secret-key-orch" not in repr(config)
 
-    def test_kyc_profile_routing(self, store, config):
+    def test_kyc_profile_routing(self, store, config, monkeypatch):
         """Verifies kyc_profile routing works correctly."""
-        orch = ArbiterOrchestrator(store, config)
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
 
-        mock_classification = RouteClassification(specialist="kyc_profile").model_dump_json()
         mock_kyc_resp = KYCAnswerSchema(
             question_id="q_orch_kyc",
             answer="PAN is ****249H",
@@ -214,30 +217,25 @@ class TestOrchestratorContracts:
             citations=["kyc_1014"]
         ).model_dump_json()
 
-        mock_client.chat.completions.create.side_effect = [
-            make_mock_completion(mock_classification),
-            make_mock_completion(mock_kyc_resp)
-        ]
+        mock_client.chat.completions.create.side_effect = _make_orch_mock_create("kyc_profile", mock_kyc_resp)
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_kyc",
-                "client_id": "cli_1014",
-                "prompt": "What is the PAN for cli_1014?"
-            })
-            assert res["agents"] == ["router", "kyc_profile"]
-            assert res["answer_value"] == "****249H"
-
-    def test_notes_desk_routing(self, store, config):
-        """Verifies notes_desk routing works correctly."""
         orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_kyc",
+            "client_id": "cli_1014",
+            "prompt": "What is the PAN for cli_1014?"
+        })
+        assert res["agents"] == ["router", "kyc_profile"]
+        assert res["answer_value"] == "****249H"
+
+    def test_notes_desk_routing(self, store, config, monkeypatch):
+        """Verifies notes_desk routing works correctly."""
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
 
-        mock_classification = RouteClassification(specialist="notes_desk").model_dump_json()
         mock_notes_resp = NotesAnswerSchema(
             question_id="q_orch_notes",
             answer="Client requested LRS limit check",
@@ -247,30 +245,25 @@ class TestOrchestratorContracts:
             citations=["note_5001"]
         ).model_dump_json()
 
-        mock_client.chat.completions.create.side_effect = [
-            make_mock_completion(mock_classification),
-            make_mock_completion(mock_notes_resp)
-        ]
+        mock_client.chat.completions.create.side_effect = _make_orch_mock_create("notes_desk", mock_notes_resp)
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_notes",
-                "client_id": "cli_1001",
-                "prompt": "What notes do we have for cli_1001?"
-            })
-            assert res["agents"] == ["router", "notes_desk"]
-            assert res["answer_value"] == "note_5001"
-
-    def test_market_desk_routing(self, store, config):
-        """Verifies market_desk routing works correctly."""
         orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_notes",
+            "client_id": "cli_1001",
+            "prompt": "What notes do we have for cli_1001?"
+        })
+        assert res["agents"] == ["router", "notes_desk"]
+        assert res["answer_value"] == "note_5001"
+
+    def test_market_desk_routing(self, store, config, monkeypatch):
+        """Verifies market_desk routing works correctly."""
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
 
-        mock_classification = RouteClassification(specialist="market_desk").model_dump_json()
         mock_mkt_resp = MarketAnswerSchema(
             question_id="q_orch_mkt",
             answer="Price is 190.17",
@@ -280,39 +273,37 @@ class TestOrchestratorContracts:
             citations=["AAPL"]
         ).model_dump_json()
 
-        mock_client.chat.completions.create.side_effect = [
-            make_mock_completion(mock_classification),
-            make_mock_completion(mock_mkt_resp)
-        ]
+        mock_client.chat.completions.create.side_effect = _make_orch_mock_create("market_desk", mock_mkt_resp)
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_mkt",
-                "client_id": "cli_1014",
-                "prompt": "What was AAPL price on 2026-05-17?"
-            })
-            assert res["agents"] == ["router", "market_desk"]
-            assert res["answer_value"] == "190.17"
-
-    def test_gateway_failure_handling(self, store, config):
-        """Verifies that gateway failures result in upstream_issue flag inside orchestrator."""
         orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_mkt",
+            "client_id": "cli_1014",
+            "prompt": "What was AAPL price on 2026-05-17?"
+        })
+        assert res["agents"] == ["router", "market_desk"]
+        assert res["answer_value"] == "190.17"
+
+
+    def test_gateway_failure_handling(self, store, config, monkeypatch):
+        """Verifies that gateway failures result in upstream_issue flag inside orchestrator."""
         mock_client = MagicMock()
         mock_client.is_closed.return_value = False
         mock_client.chat.completions.create.side_effect = Exception("API connection failure")
 
-        with pytest.MonkeyPatch().context() as m:
-            from agno.models.openai import OpenAIChat
-            m.setattr(OpenAIChat, "get_client", lambda self: mock_client)
+        from agno.models.openai import OpenAIChat
+        monkeypatch.setattr(OpenAIChat, "get_client", lambda self: mock_client)
 
-            res = orch.answer({
-                "question_id": "q_orch_err",
-                "client_id": "cli_1014",
-                "prompt": "Factual query"
-            })
-            assert res["abstained"] is True
-            assert "upstream_issue" in res["flags"]
+        orch = ArbiterOrchestrator(store, config)
+        res = orch.answer({
+            "question_id": "q_orch_err",
+            "client_id": "cli_1014",
+            "prompt": "Factual query"
+        })
+        assert res["abstained"] is True
+        assert "upstream_issue" in res["flags"]
+
 

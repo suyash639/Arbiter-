@@ -57,6 +57,15 @@ class Config:
     llm_provider: str = "valura"
     llm_model: str = "valura-fast"
 
+    # --- reliability & resilience controls ---------------------------------
+    reliability_max_attempts: int = 3
+    reliability_initial_backoff: float = 0.5
+    reliability_max_backoff: float = 10.0
+    reliability_jitter: bool = True
+    llm_timeout_seconds: float = 15.0
+    circuit_breaker_failure_threshold: int = 3
+    circuit_breaker_recovery_seconds: float = 30.0
+
     # ------------------------------------------------------------------
     # Public accessor (allows the gateway client to read the key without
     # the caller needing to know the internal attribute name).
@@ -119,6 +128,20 @@ class Config:
                 f"PORT environment variable is out of range [1, 65535]: {port}"
             )
 
+        # Reliability options with standard production defaults
+        try:
+            max_attempts = int(os.environ.get("RELIABILITY_MAX_ATTEMPTS", "3"))
+            init_backoff = float(os.environ.get("RELIABILITY_INITIAL_BACKOFF", "0.5"))
+            max_backoff = float(os.environ.get("RELIABILITY_MAX_BACKOFF", "10.0"))
+            jitter = os.environ.get("RELIABILITY_JITTER", "true").lower() in ("true", "1", "yes")
+            llm_timeout = float(os.environ.get("LLM_TIMEOUT_SECONDS", "15.0"))
+            cb_threshold = int(os.environ.get("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "3"))
+            cb_recovery = float(os.environ.get("CIRCUIT_BREAKER_RECOVERY_SECONDS", "30.0"))
+        except ValueError as exc:
+            raise ConfigError(f"Invalid reliability configuration parameter: {exc}") from exc
+
+
+
         return cls(
             book_path=book_path,
             market_path=market_path,
@@ -127,6 +150,13 @@ class Config:
             port=port,
             llm_provider=llm_provider,
             llm_model=llm_model,
+            reliability_max_attempts=max_attempts,
+            reliability_initial_backoff=init_backoff,
+            reliability_max_backoff=max_backoff,
+            reliability_jitter=jitter,
+            llm_timeout_seconds=llm_timeout,
+            circuit_breaker_failure_threshold=cb_threshold,
+            circuit_breaker_recovery_seconds=cb_recovery,
         )
 
     # ------------------------------------------------------------------
@@ -169,3 +199,4 @@ class Config:
             f"llm_provider={self.llm_provider!r}, "
             f"llm_model={self.llm_model!r})"
         )
+

@@ -12,12 +12,15 @@ It does not expose any retrieval tools.
 from __future__ import annotations
 
 import logging
+import time
 from pydantic import BaseModel, Field
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from arbiter.config import Config
 from arbiter.data_store import DataStore
+from arbiter.observability import get_observability_manager
+
 
 logger = logging.getLogger("arbiter.agents.compliance")
 
@@ -147,8 +150,31 @@ OUTPUT INSTRUCTIONS:
         )
 
         # --- 3. Execute Agno Agent with error fallbacks ---
+        obs = get_observability_manager()
+        t_llm_0 = time.perf_counter()
         try:
             res = agent.run(prompt)
+            t_llm_ms = (time.perf_counter() - t_llm_0) * 1000.0
+
+            # Extract token metrics if available
+            metrics = getattr(res, "metrics", None) or {}
+            in_tokens, out_tokens, tot_tokens = None, None, None
+            if isinstance(metrics, dict):
+                in_tokens = metrics.get("input_tokens") or metrics.get("prompt_tokens")
+                out_tokens = metrics.get("output_tokens") or metrics.get("completion_tokens")
+                tot_tokens = metrics.get("total_tokens")
+
+            obs.record_specialist_llm(
+                request_id=None,
+                agent="compliance",
+                provider=self.config.llm_provider,
+                model=chosen_model,
+                latency_ms=t_llm_ms,
+                input_tokens=in_tokens,
+                output_tokens=out_tokens,
+                total_tokens=tot_tokens,
+                success=True,
+            )
 
             if hasattr(res, "content") and isinstance(res.content, AnswerSchema):
                 out_dict = res.content.model_dump()
@@ -193,6 +219,17 @@ OUTPUT INSTRUCTIONS:
             }
 
         except Exception as e:
+            t_llm_ms = (time.perf_counter() - t_llm_0) * 1000.0
+            obs.record_specialist_llm(
+                request_id=None,
+                agent="compliance",
+                provider=self.config.llm_provider,
+                model=chosen_model,
+                latency_ms=t_llm_ms,
+                success=False,
+                error_category=type(e).__name__,
+            )
+
             logger.error(f"LLM Gateway execution error: {e}", exc_info=True)
             return {
                 "question_id": question_id,

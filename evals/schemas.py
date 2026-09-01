@@ -91,6 +91,11 @@ class AggregateReport(BaseModel):
     safety_accuracy: float = 0.0
     schema_pass_rate: float = 0.0
     latency: LatencyStats = Field(default_factory=LatencyStats)
+    total_tokens: int | None = Field(default=None, description="Total LLM tokens consumed across evaluation run.")
+    estimated_cost_usd: float | None = Field(default=None, description="Total estimated LLM cost in USD.")
+    total_tool_calls: int = Field(default=0, description="Total deterministic tool calls executed.")
+    tool_success_rate: float = Field(default=1.0, description="Fraction of tool calls that succeeded.")
     categories: dict[str, CategoryMetrics] = Field(default_factory=dict)
     case_results: list[CaseEvaluationResult] = Field(default_factory=list)
     failures: list[dict[str, Any]] = Field(default_factory=list)
+

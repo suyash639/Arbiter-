@@ -15,3 +15,5 @@ dist/
 logs/
 evals/reports/*.json
 !evals/reports/.gitkeep
+scratch/
+

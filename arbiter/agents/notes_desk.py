@@ -13,6 +13,7 @@ It refuses to provide personal investment advice or recommendations.
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 from pydantic import BaseModel, Field
 
@@ -20,6 +21,8 @@ from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 from arbiter.config import Config
 from arbiter.data_store import DataStore
+from arbiter.observability import get_observability_manager
+
 from arbiter.tools.book import (
     BookToolError,
     UnknownClientError,
@@ -123,14 +126,52 @@ class NotesDeskAgent:
 
         # --- 2. Expose deterministic tools closed over store and client_id ---
         tool_errors: list[Exception] = []
+        obs = get_observability_manager()
 
         def track_errors(func):
             from functools import wraps
+            from datetime import datetime, timezone
+            import time
+            tool_name = func.__name__
+
             @wraps(func)
             def wrapper(*args, **kwargs):
+                t0 = time.perf_counter()
+                start_iso = datetime.now(timezone.utc).isoformat()
+                call_args = dict(kwargs)
+                if args:
+                    call_args["_args"] = list(args)
+
                 try:
-                    return func(*args, **kwargs)
+                    res = func(*args, **kwargs)
+                    dt_ms = (time.perf_counter() - t0) * 1000.0
+                    end_iso = datetime.now(timezone.utc).isoformat()
+                    obs.record_tool_call(
+                        request_id=None,
+                        tool_name=tool_name,
+                        agent="notes_desk",
+                        start_time=start_iso,
+                        end_time=end_iso,
+                        latency_ms=dt_ms,
+                        success=True,
+                        args=call_args,
+                        result_summary=res,
+                    )
+                    return res
                 except Exception as e:
+                    dt_ms = (time.perf_counter() - t0) * 1000.0
+                    end_iso = datetime.now(timezone.utc).isoformat()
+                    obs.record_tool_call(
+                        request_id=None,
+                        tool_name=tool_name,
+                        agent="notes_desk",
+                        start_time=start_iso,
+                        end_time=end_iso,
+                        latency_ms=dt_ms,
+                        success=False,
+                        args=call_args,
+                        error_category=type(e).__name__,
+                    )
                     tool_errors.append(e)
                     raise
             return wrapper
@@ -229,8 +270,30 @@ OUTPUT INSTRUCTIONS:
             return None
 
         # --- 4. Execute Agno Agent with error fallbacks ---
+        t_llm_0 = time.perf_counter()
         try:
             res = agent.run(prompt)
+            t_llm_ms = (time.perf_counter() - t_llm_0) * 1000.0
+
+            # Extract token metrics if available
+            metrics = getattr(res, "metrics", None) or {}
+            in_tokens, out_tokens, tot_tokens = None, None, None
+            if isinstance(metrics, dict):
+                in_tokens = metrics.get("input_tokens") or metrics.get("prompt_tokens")
+                out_tokens = metrics.get("output_tokens") or metrics.get("completion_tokens")
+                tot_tokens = metrics.get("total_tokens")
+
+            obs.record_specialist_llm(
+                request_id=None,
+                agent="notes_desk",
+                provider=self.config.llm_provider,
+                model=chosen_model,
+                latency_ms=t_llm_ms,
+                input_tokens=in_tokens,
+                output_tokens=out_tokens,
+                total_tokens=tot_tokens,
+                success=True,
+            )
             
             tool_err_resp = check_tool_errors()
             if tool_err_resp:
@@ -271,6 +334,17 @@ OUTPUT INSTRUCTIONS:
             )
 
         except Exception as e:
+            t_llm_ms = (time.perf_counter() - t_llm_0) * 1000.0
+            obs.record_specialist_llm(
+                request_id=None,
+                agent="notes_desk",
+                provider=self.config.llm_provider,
+                model=chosen_model,
+                latency_ms=t_llm_ms,
+                success=False,
+                error_category=type(e).__name__,
+            )
+
             tool_err_resp = check_tool_errors()
             if tool_err_resp:
                 return tool_err_resp

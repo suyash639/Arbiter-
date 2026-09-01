@@ -13,6 +13,7 @@ import re
 from typing import Any
 
 from arbiter.data_store import DataStore
+from arbiter.observability import get_observability_manager
 import arbiter.tools.book as b
 import arbiter.tools.market as m
 
@@ -23,9 +24,28 @@ class MockOrchestrator:
     def __init__(self, store: DataStore, config: Any = None):
         self.store = store
         self.config = config
+        self.obs = get_observability_manager()
 
     def answer(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Process a question payload deterministically."""
+        qid = payload.get("question_id", "mock_q")
+        cid = payload.get("client_id", "")
+        prompt = payload.get("prompt", "").strip()
+
+        rid = self.obs.start_request(
+            question_id=qid,
+            client_id=cid,
+            prompt=prompt,
+            provider="deterministic-mock",
+            model="rule-engine",
+            request_id=payload.get("request_id"),
+        )
+
+        res = self._process_answer(payload)
+        self.obs.finish_request(rid, res)
+        return res
+
+    def _process_answer(self, payload: dict[str, Any]) -> dict[str, Any]:
         qid = payload.get("question_id", "mock_q")
         cid = payload.get("client_id", "")
         prompt = payload.get("prompt", "").strip()

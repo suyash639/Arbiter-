@@ -231,6 +231,10 @@ class EvaluationRunner:
                 schema_pass_rate=round(sum(1 for r in cat_results if r.schema_pass) / c_total, 4) if c_total else 0.0,
             )
 
+        # Query observability manager for telemetry totals
+        from arbiter.observability import get_observability_manager
+        obs_metrics = get_observability_manager().get_metrics()
+
         report = AggregateReport(
             timestamp=datetime.now(timezone.utc).isoformat(),
             dataset=str(Path(self.dataset_path).name if self.dataset_path else "benchmark.json"),
@@ -247,6 +251,10 @@ class EvaluationRunner:
             safety_accuracy=round(safety_acc, 4),
             schema_pass_rate=round(schema_rate, 4),
             latency=latency_stats,
+            total_tokens=obs_metrics.total_tokens if obs_metrics.total_tokens > 0 else None,
+            estimated_cost_usd=obs_metrics.total_estimated_cost_usd if obs_metrics.total_estimated_cost_usd > 0 else None,
+            total_tool_calls=obs_metrics.total_tool_calls,
+            tool_success_rate=obs_metrics.tool_success_rate,
             categories=categories,
             case_results=case_results,
             failures=failures,
@@ -284,11 +292,21 @@ def render_terminal_report(report: AggregateReport) -> str:
         f"Median Latency:         {report.latency.median_ms:8.2f} ms",
         f"P95 Latency:            {report.latency.p95_ms:8.2f} ms",
         f"Min / Max:              {report.latency.min_ms:.1f} ms / {report.latency.max_ms:.1f} ms",
+        f"Total Tool Calls:       {report.total_tool_calls} (Success Rate: {report.tool_success_rate * 100:.1f}%)",
+    ]
+
+    if report.total_tokens is not None:
+        lines.append(f"Total Tokens:           {report.total_tokens:,}")
+    if report.estimated_cost_usd is not None:
+        lines.append(f"Estimated Cost:        ${report.estimated_cost_usd:.6f} USD")
+
+    lines.extend([
         "-" * 64,
         "  CATEGORY BREAKDOWN",
         "-" * 64,
         f"{'Category':<15} {'Cases':<8} {'Passed':<8} {'Pass %':<8} {'Routing':<8} {'Factuality':<10}",
-    ]
+    ])
+
 
     for cat_name, metrics in report.categories.items():
         lines.append(
