@@ -22,6 +22,7 @@ from agno.models.openai import OpenAIChat
 from arbiter.config import Config
 from arbiter.data_store import DataStore
 from arbiter.observability import get_observability_manager
+from arbiter.tool_verification import ToolVerifier, ToolVerificationError
 from arbiter.tools.book import (
     BookToolError,
     UnknownClientError,
@@ -142,51 +143,24 @@ class BookQAAgent:
         # Collect exceptions raised during tool execution
         tool_errors: list[Exception] = []
         obs = get_observability_manager()
+        verifier = ToolVerifier(store=self.store, observability=obs)
 
         def track_errors(func):
             from functools import wraps
-            from datetime import datetime, timezone
-            import time
             tool_name = func.__name__
 
             @wraps(func)
             def wrapper(*args, **kwargs):
-                t0 = time.perf_counter()
-                start_iso = datetime.now(timezone.utc).isoformat()
-                call_args = dict(kwargs)
-                if args:
-                    call_args["_args"] = list(args)
-
                 try:
-                    res = func(*args, **kwargs)
-                    dt_ms = (time.perf_counter() - t0) * 1000.0
-                    end_iso = datetime.now(timezone.utc).isoformat()
-                    obs.record_tool_call(
-                        request_id=None,
+                    return verifier.verify_and_execute(
+                        tool_func=func,
+                        agent_name="book_qa",
                         tool_name=tool_name,
-                        agent="book_qa",
-                        start_time=start_iso,
-                        end_time=end_iso,
-                        latency_ms=dt_ms,
-                        success=True,
-                        args=call_args,
-                        result_summary=res,
+                        args=args,
+                        kwargs=kwargs,
+                        trusted_client_id=client_id,
                     )
-                    return res
                 except Exception as e:
-                    dt_ms = (time.perf_counter() - t0) * 1000.0
-                    end_iso = datetime.now(timezone.utc).isoformat()
-                    obs.record_tool_call(
-                        request_id=None,
-                        tool_name=tool_name,
-                        agent="book_qa",
-                        start_time=start_iso,
-                        end_time=end_iso,
-                        latency_ms=dt_ms,
-                        success=False,
-                        args=call_args,
-                        error_category=type(e).__name__,
-                    )
                     tool_errors.append(e)
                     raise
             return wrapper
@@ -426,7 +400,7 @@ OUTPUT INSTRUCTIONS:
                         "flags": [],
                         "agents": ["router", "book_qa"]
                     }
-                if isinstance(err, ValueError) and "Scope violation" in str(err):
+                if isinstance(err, (ToolVerificationError, ValueError)) and ("Scope violation" in str(err) or isinstance(err, ToolVerificationError)):
                     return {
                         "question_id": question_id,
                         "answer": "",

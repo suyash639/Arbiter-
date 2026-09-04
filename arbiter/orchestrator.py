@@ -27,6 +27,11 @@ from arbiter.agents.market_desk import MarketDeskAgent
 from arbiter.agents.compliance import ComplianceAgent
 from arbiter.observability import get_observability_manager
 from arbiter.reliability import ReliabilityEngine
+from arbiter.security import (
+    InputValidationError,
+    PromptInjectionDetectedError,
+    get_security_manager,
+)
 
 logger = logging.getLogger("arbiter.orchestrator")
 
@@ -63,6 +68,7 @@ class ArbiterOrchestrator:
         self.config = config
         self.obs = get_observability_manager()
         self.reliability = reliability or ReliabilityEngine(config=config, observability=self.obs)
+        self.security = get_security_manager(store=store)
 
         # Register and instantiate the specialist agents
         self.specialists = {
@@ -204,7 +210,7 @@ Respond strictly in JSON matching the RouteClassification schema.
             request_id=custom_req_id,
         )
 
-        # --- 1. Pre-flight Checks ---
+        # --- 1. Pre-flight & Security Validation Checks ---
         if not payload.get("question_id"):
             res = self._build_abstention(
                 "unknown",
@@ -232,6 +238,30 @@ Respond strictly in JSON matching the RouteClassification schema.
             self.obs.finish_request(rid, res)
             return res
 
+        # Run Security Input Guard & Prompt Injection Scanner
+        try:
+            clean_payload = self.security.validate_request_payload(payload, request_id=rid)
+            prompt = clean_payload["prompt"]
+        except PromptInjectionDetectedError as inj_err:
+            refusal_res = {
+                "question_id": question_id,
+                "answer": "",
+                "answer_value": None,
+                "abstained": False,
+                "refused": True,
+                "reason": f"Request refused due to security policy constraints: {inj_err}",
+                "citations": [],
+                "confidence": 1.0,
+                "flags": [],
+                "agents": ["router", "compliance"]
+            }
+            self.obs.finish_request(rid, refusal_res)
+            return refusal_res
+        except InputValidationError as val_err:
+            abstention_res = self._build_abstention(question_id, reason=str(val_err))
+            self.obs.finish_request(rid, abstention_res)
+            return abstention_res
+
         # --- 2. Determine Specialist ---
         role = self.route_question(question_id, client_id, prompt, request_id=rid)
         logger.info(f"Router directed q_id {question_id} to agent {role}.")
@@ -255,8 +285,15 @@ Respond strictly in JSON matching the RouteClassification schema.
             elif "router" not in response["agents"]:
                 response["agents"] = ["router"] + response["agents"]
 
-            self.obs.finish_request(rid, response)
-            return response
+            # --- 4. Post-Generation Output Sanitization ---
+            sanitized_response = self.security.sanitize_response(
+                response=response,
+                authorized_client_id=client_id,
+                request_id=rid,
+            )
+
+            self.obs.finish_request(rid, sanitized_response)
+            return sanitized_response
 
         except Exception as e:
             logger.error(f"Orchestrator delegation failed to specialist {role}: {e}", exc_info=True)
