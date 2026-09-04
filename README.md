@@ -112,38 +112,51 @@ flowchart TD
 
 ## 3. Why Arbiter Is Not Just Another LLM Chatbot
 
-Traditional LLM chatbots directly execute natural-language queries against untrusted models, leading to calculation hallucinations, PII leakage, prompt injections, and cascading upstream outages. **Arbiter isolates the LLM as a semantic router and synthesizer, delegating all data retrieval, security boundaries, and financial arithmetic to deterministic Python systems.**
+Most AI financial assistants fail in production because they delegate core business logic, database queries, and arithmetic directly to probabilistic neural networks. This creates three critical vulnerabilities: **calculation hallucinations**, **cross-client scope leaks**, and **uncontrolled upstream failure modes**.
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   ARBITER DEFENSE BOUNDARY                                       │
-│                                                                                                  │
-│   UNTRUSTED MODEL LAYER                      TRUSTED DETERMINISTIC LAYER                         │
-│  ┌───────────────────────┐                  ┌────────────────────────────────────────────────┐   │
-│  │ • Natural Language    │  ── Routed To ──>│ • 100% Decimal Financial Arithmetic (No Math in LLM)│   │
-│  │ • Intent Semantic QA  │                  │ • Strict Client Scope Enforcement (No Snooping) │   │
-│  │ • Text Synthesis      │  <── Clean Res ──│ • 24 Verified Declarative Tool Schemas         │   │
-│  │ • Zero Direct Data Acc│                  │ • Input/Output Jailbreak & PII Redaction Guard  │   │
-│  └───────────────────────┘                  └────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+Arbiter enforces a **strict separation of concerns**: Large Language Models are isolated exclusively as semantic interpreters and natural-language synthesizers. All data retrieval, multi-tenant isolation, policy enforcement, and financial math are executed by deterministic Python systems.
+
+```mermaid
+flowchart TD
+    classDef badStyle fill:#450a0a,stroke:#ef4444,stroke-width:1.5px,color:#fee2e2;
+    classDef goodStyle fill:#14532d,stroke:#22c55e,stroke-width:1.5px,color:#f0fdf4;
+    classDef neutralStyle fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc;
+
+    subgraph TRADITIONAL [" ❌ Traditional LLM Chatbot (Probabilistic Risk) "]
+        U1[" User Request "] --> LLM1[" Monolithic LLM Prompt <br/>(Handles Math, Scope, Policy & Retrieval Internally) "]
+        LLM1 --> OUT1[" Unverified Output <br/>⚠️ Floating-Point Hallucinations <br/>⚠️ PII Leaks & Scope Bleed <br/>⚠️ Unhandled Upstream 5xx Crashes "]
+    end
+
+    subgraph ARBITER_MODEL [" ✅ Arbiter Multi-Agent Architecture (Deterministic Safety) "]
+        U2[" User Request "] --> SEC[" Security Preflight & Scope Closure "]
+        SEC --> ROUTER_NODE[" Semantic Router & Domain Agents <br/>(LLM: Interpretation Only) "]
+        ROUTER_NODE <--> TOOLS[" 24 Verified Deterministic Tools <br/>(100% Decimal Math & Isolated Datastore) "]
+        TOOLS --> SANITIZER[" Output Guard & PII Redactor "]
+        SANITIZER --> OUT2[" Verified AnswerSchema JSON <br/>✅ Penny-Perfect Accuracy <br/>✅ Enforced Client Scope <br/>✅ Guaranteed Schema Invariants "]
+    end
+
+    class U1,LLM1,OUT1 badStyle;
+    class U2,SEC,ROUTER_NODE,TOOLS,SANITIZER,OUT2 goodStyle;
 ```
 
-| Capability | Generic LLM Chatbot | Arbiter Production Architecture |
+### Architectural Differentiation
+
+| Domain | Generic LLM Chatbot | Arbiter Multi-Agent Platform |
 | :--- | :--- | :--- |
-| **Financial Calculations** | ❌ Approximated by LLM (hallucinations & float errors) | ✅ **100% `decimal.Decimal` deterministic calculations in Python tools** |
-| **Multi-Agent Routing** | ❌ Monolithic single-prompt system instructions | ✅ **Hub-and-spoke multi-agent topology with intent routing overrides** |
-| **Tool Authorization** | ❌ Blind model tool calling without boundary checks | ✅ **Authoritative registry (`TOOL_REGISTRY`) with explicit agent permissions** |
-| **Client Scope Isolation** | ❌ Vulnerable to prompt leaking and cross-tenant snooping | ✅ **Authoritative request context closures + preflight client validation** |
-| **Tool Argument Validation** | ❌ Unvalidated JSON passed directly to handlers | ✅ **Strict Pydantic schemas, ISO-8601 date parsing, enum validation** |
-| **PII & Secret Redaction** | ❌ Raw credentials, PANs, and bank accounts logged | ✅ **Automated regex sanitization (`****249H`, `****9012`, `[REDACTED_SECRET]`)** |
-| **Prompt Injection Defense** | ❌ Naive system prompts easily bypassed by jailbreaks | ✅ **Deterministic preflight scanner + XML quarantine for retrieved notes** |
-| **Refusal / Abstention Semantics** | ❌ Ambiguous text apologies ("I cannot do this") | ✅ **Structured contracts: `refused=True` for advice, `abstained=True` for missing data** |
-| **Upstream Outage Handling** | ❌ Unhandled 429/5xx exceptions crash user request | ✅ **Classification-aware retry with exponential backoff & full jitter** |
-| **Cascading Failure Protection** | ❌ Continuously hammers failing upstream APIs | ✅ **Distributed Circuit Breaker (`CLOSED` $\to$ `OPEN` $\to$ `HALF_OPEN`)** |
-| **Transport Boundary** | ❌ Ad-hoc scripts or unversioned endpoints | ✅ **Asynchronous FastAPI service boundary with correlation IDs (`req_*`)** |
-| **Observability & Tracing** | ❌ Unstructured logs with missing latencies | ✅ **High-resolution monotonic profiling & sanitized JSONL trace collector** |
-| **Evaluation Framework** | ❌ Manual spot checking | ✅ **45-case automated ground-truth offline/live evaluation suite** |
-| **Operations Console** | ❌ Generic text prompt box | ✅ **9-screen high-density React 19 / Vite financial operations console** |
+| **Financial Calculations** | ❌ Approximated by neural weights (floating-point drift & hallucinations) | ✅ **100% `decimal.Decimal` deterministic calculations in Python tools** |
+| **Multi-Agent Routing** | ❌ Single prompt with bloated system instructions | ✅ **Hub-and-spoke router with deterministic preflight & keyword overrides** |
+| **Tool Authorization** | ❌ Model calls tools arbitrarily without permission checks | ✅ **Authoritative registry (`TOOL_REGISTRY`) with explicit agent allowlists** |
+| **Multi-Tenant Isolation** | ❌ Vulnerable to prompt injection cross-client snooping | ✅ **Runtime context closures enforcing authorized `client_id` bounds** |
+| **Tool Schema Validation** | ❌ Unchecked JSON payload passed directly to backend | ✅ **Strict Pydantic argument schemas, ISO date parsing, and enum bounds** |
+| **PII & Data Redaction** | ❌ Raw PANs, bank accounts, and secrets logged in plaintext | ✅ **Automated regex redaction (`****249H`, `****9012`, `[REDACTED_SECRET]`)** |
+| **Injection Defense** | ❌ Fragile system prompt rules easily bypassed | ✅ **Deterministic ingress scanner + XML quarantine for external notes** |
+| **Refusal Semantics** | ❌ Ambiguous conversational apologies | ✅ **Formal contracts: `refused=True` for advice, `abstained=True` for missing data** |
+| **Reliability & Retries** | ❌ Unhandled 429/5xx exceptions crash user requests | ✅ **Classification-aware retry with exponential backoff & full jitter** |
+| **Cascading Protection** | ❌ Blindly hammers degraded upstream APIs | ✅ **State-machine Circuit Breaker (`CLOSED` $\to$ `OPEN` $\to$ `HALF_OPEN`)** |
+| **Service Boundary** | ❌ Ad-hoc scripts or unversioned endpoints | ✅ **Asynchronous FastAPI HTTP layer with request correlation IDs (`req_*`)** |
+| **Observability** | ❌ Unstructured print logs without performance attribution | ✅ **Monotonic microsecond profiling & sanitized JSONL trace collector** |
+| **Testing & Evals** | ❌ Manual spot checks on arbitrary queries | ✅ **45-case ground-truth benchmark suite with zero-drift offline runner** |
+| **Operations Interface** | ❌ Basic chat window without inspection tools | ✅ **9-screen React 19 / Vite console with live telemetry & trace inspection** |
 
 ---
 
@@ -361,48 +374,75 @@ flowchart LR
 
 ## 8. Reliability Architecture & Fault Tolerance
 
-Arbiter incorporates an enterprise-grade `ReliabilityEngine` to handle upstream LLM transient outages, rate limits, and network connection drops without crashing or hanging the platform.
+Arbiter features an enterprise-grade `ReliabilityEngine` engineered to isolate the platform from upstream LLM outages, provider rate limits, network partitions, and cascading failure loops without degrading service availability.
 
 ```mermaid
 flowchart TD
-    classDef normalStyle fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
-    classDef checkStyle fill:#312e81,stroke:#6366f1,stroke-width:2px,color:#e0e7ff;
+    classDef startStyle fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+    classDef cbStyle fill:#312e81,stroke:#6366f1,stroke-width:2px,color:#e0e7ff;
+    classDef execStyle fill:#0f172a,stroke:#38bdf8,stroke-width:1.5px,color:#f0f9ff;
+    classDef classStyle fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7;
+    classDef retryStyle fill:#1e1b4b,stroke:#a855f7,stroke-width:2px,color:#faf5ff;
     classDef errorStyle fill:#450a0a,stroke:#ef4444,stroke-width:2px,color:#fee2e2;
     classDef safeStyle fill:#14532d,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
 
-    IN[" Agent / Model Request "] --> CB{" Circuit Breaker Status "}
-    
-    CB -->|CLOSED| EXEC[" Execute Model Call with Timeout (15s) "]
-    CB -->|OPEN| FALLBACK[" Safe Fallback Abstention Envelope <br/>(abstained=True, flags=['circuit_open']) "]
-    CB -->|HALF-OPEN| PROBE[" Single Probe Request "]
+    REQ[" Upstream LLM / Agent Invocation "] --> CB_GATE{" 1. Circuit Breaker Gate "}
 
-    EXEC -->|Success| RET[" Return Valid Result "]
-    EXEC -->|Failure| CLASS{" Failure Classification Engine "}
+    subgraph CIRCUIT_BREAKER [" Circuit Breaker State Machine "]
+        CB_GATE -->|CLOSED: Normal| EXEC[" 2. Execute Request with Timeout <br/>(15.0s Strict Wall-Clock Limit) "]
+        CB_GATE -->|OPEN: Degraded| FAST_FALLBACK[" Fast Fallback Envelope <br/>(abstained=True, flags=['circuit_open']) "]
+        CB_GATE -->|HALF-OPEN: Cooldown Expired| PROBE[" 2b. Single Probe Request "]
+        PROBE --> EXEC
+    end
 
-    CLASS -->|Retryable: 429 Rate Limit, 5xx Server, Timeout| RETRY{" Attempts Remaining? "}
-    CLASS -->|Non-Retryable: 400 Bad Request, 401/403 Auth, Scope| FAIL[" Immediate Non-Retryable Failure "]
+    subgraph EXECUTION_PATH [" Execution & Result Processing "]
+        EXEC -->|HTTP 200 / Valid Output| SUCCESS[" Return Valid Result & Reset Failure Count "]
+        EXEC -->|Exception / Timeout| CLASSIFIER{" 3. Error Classification Engine "}
+    end
 
-    RETRY -->|Yes| BACKOFF[" Exponential Backoff with Full Jitter <br/>(Base: 0.5s, Max: 10s) "] --> EXEC
-    RETRY -->|No (Exhausted)| TRIP[" Trip Circuit Breaker "] --> FALLBACK
+    subgraph CLASSIFICATION_AND_RETRY [" Classification & Retry Engine "]
+        CLASSIFIER -->|Non-Retryable: 400 Bad Request, 401/403 Auth, Scope, Policy| NON_RETRY[" Deterministic Error / Refusal Envelope <br/>(Zero Futile Retries) "]
+        CLASSIFIER -->|Retryable: 429 Rate Limit, 5xx Server, Connection, Timeout| ATTEMPTS{" Attempts Remaining? "}
+        ATTEMPTS -->|Yes: Attempt < 3| BACKOFF[" 4. Exponential Backoff + Jitter <br/>(Base: 0.5s, Max: 10s, Full Jitter) "]
+        BACKOFF --> EXEC
+        ATTEMPTS -->|No: Exhausted| TRIP_CB[" Trip Circuit Breaker to OPEN <br/>(Cooldown: 30.0s) "]
+        TRIP_CB --> TIMEOUT_FALLBACK[" Safe Fallback Envelope <br/>(abstained=True, flags=['upstream_issue']) "]
+    end
 
-    class IN,EXEC,BACKOFF normalStyle;
-    class CB,CLASS,RETRY checkStyle;
-    class FAIL,TRIP errorStyle;
-    class RET,FALLBACK,PROBE safeStyle;
+    SUCCESS --> RESP[" Structured AnswerSchema Response "]
+    FAST_FALLBACK --> RESP
+    NON_RETRY --> RESP
+    TIMEOUT_FALLBACK --> RESP
+
+    class REQ,RESP startStyle;
+    class CB_GATE,PROBE cbStyle;
+    class EXEC,SUCCESS execStyle;
+    class CLASSIFIER classStyle;
+    class ATTEMPTS,BACKOFF,TRIP_CB retryStyle;
+    class NON_RETRY errorStyle;
+    class FAST_FALLBACK,TIMEOUT_FALLBACK safeStyle;
 ```
+
+### Core Reliability Invariants
+
+1. **Classification-Aware Retries**: Retries *only* transient upstream failures (429 Rate Limit, 5xx Server Error, network resets, socket timeouts). Client errors (400, 401, 404), policy refusals, and scope violations fail immediately with zero futile retries.
+2. **Exponential Backoff with Full Jitter**: Backoff intervals scale exponentially ($0.5s \to 1.0s \to 2.0s \dots \le 10.0s$) with randomized jitter to disperse concurrency spikes and eliminate thundering-herd effects against upstream providers.
+3. **State-Machine Circuit Breaker**: Trips to `OPEN` after 3 consecutive upstream failures, immediately short-circuiting downstream calls into safe fallback envelopes (`flags=['circuit_open']`). Transitions to `HALF_OPEN` after a 30s recovery cooldown to probe upstream health.
+4. **Deterministic Non-Blocking Timeouts**: Upstream model calls enforce a strict 15.0s per-attempt wall-clock timeout via non-blocking threadpool executors, preventing thread starvation.
+5. **Schema-Valid Fallback Guarantees**: System degradation always yields a complete, schema-valid `AnswerSchema` JSON envelope (`abstained=True`), ensuring clients never receive raw 500 error pages or truncated responses.
 
 ### Error Classification Matrix
 
 | Error Type | Status / Exception | Policy | Action |
 | :--- | :--- | :---: | :--- |
-| **Rate Limit** | HTTP 429, `ResourceExhausted` | **`RETRYABLE`** | Backoff respecting `Retry-After` header |
-| **Server Error** | HTTP 500, 502, 503, 504 | **`RETRYABLE`** | Exponential backoff with full jitter |
-| **Gateway Timeout** | `TimeoutError`, `APITimeoutError` | **`RETRYABLE`** | Strict 15.0s per-attempt wall clock timeout |
-| **Connection Drop** | `ConnectionResetError`, `BrokenPipe` | **`RETRYABLE`** | Immediate retry with jittered backoff |
-| **Client Error** | HTTP 400, 401, 403, 404 | **`NON-RETRYABLE`** | Immediate failure (zero futile retries) |
-| **Policy Refusal** | Investment advice, Cross-client | **`NON-RETRYABLE`** | Returns schema-valid refusal (`refused=True`) |
-| **Scope Violation** | Unknown client ID preflight | **`NON-RETRYABLE`** | Returns schema-valid abstention (`abstained=True`) |
-| **Tool Schema Error** | Invalid filter enum, bad date | **`NON-RETRYABLE`** | Returns schema-valid tool validation error |
+| **Rate Limit** | HTTP 429, `ResourceExhausted` | **`RETRYABLE`** | Exponential backoff respecting provider `Retry-After` headers |
+| **Server Error** | HTTP 500, 502, 503, 504 | **`RETRYABLE`** | Exponential backoff with full jitter up to 3 attempts |
+| **Gateway Timeout** | `TimeoutError`, `APITimeoutError` | **`RETRYABLE`** | Strict 15.0s per-attempt timeout; retried with jitter |
+| **Connection Drop** | `ConnectionResetError`, `BrokenPipe` | **`RETRYABLE`** | Immediate retry with backoff |
+| **Client Error** | HTTP 400, 401, 403, 404 | **`NON-RETRYABLE`** | Immediate failure response (zero futile retries) |
+| **Policy Refusal** | Investment advice, Cross-client | **`NON-RETRYABLE`** | Returns deterministic refusal envelope (`refused=True`) |
+| **Scope Violation** | Unknown client ID preflight | **`NON-RETRYABLE`** | Returns deterministic abstention envelope (`abstained=True`) |
+| **Tool Schema Error** | Invalid filter enum, malformed date | **`NON-RETRYABLE`** | Returns deterministic tool validation failure envelope |
 
 ---
 
