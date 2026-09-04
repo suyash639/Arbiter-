@@ -110,53 +110,54 @@ flowchart TD
 
 ---
 
-## 3. Why Arbiter Is Not Just Another LLM Chatbot
+## 3. Engineering Paradigm & Safety Guarantees
 
-Most AI financial assistants fail in production because they delegate core business logic, database queries, and arithmetic directly to probabilistic neural networks. This creates three critical vulnerabilities: **calculation hallucinations**, **cross-client scope leaks**, and **uncontrolled upstream failure modes**.
+Financial operations systems require deterministic arithmetic, verifiable data access, and bounded failure behavior. Standard LLM wrappers that execute business logic or arithmetic directly within model prompts fail in production due to floating-point drift, scope leakage across tenants, and unhandled upstream exceptions.
 
-Arbiter enforces a **strict separation of concerns**: Large Language Models are isolated exclusively as semantic interpreters and natural-language synthesizers. All data retrieval, multi-tenant isolation, policy enforcement, and financial math are executed by deterministic Python systems.
+Arbiter isolates the Large Language Model strictly as an **intent classifier and semantic synthesizer**. All data access, client scoping, policy validation, and calculations are executed by deterministic Python layers before reaching the client.
 
 ```mermaid
 flowchart TD
-    classDef badStyle fill:#450a0a,stroke:#ef4444,stroke-width:1.5px,color:#fee2e2;
-    classDef goodStyle fill:#14532d,stroke:#22c55e,stroke-width:1.5px,color:#f0fdf4;
-    classDef neutralStyle fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc;
+    classDef unmanagedStyle fill:#1e293b,stroke:#64748b,stroke-width:1px,color:#94a3b8;
+    classDef managedStyle fill:#0f172a,stroke:#3b82f6,stroke-width:1.5px,color:#f8fafc;
+    classDef coreStyle fill:#14532d,stroke:#22c55e,stroke-width:1.5px,color:#f0fdf4;
 
-    subgraph TRADITIONAL [" ❌ Traditional LLM Chatbot (Probabilistic Risk) "]
-        U1[" User Request "] --> LLM1[" Monolithic LLM Prompt <br/>(Handles Math, Scope, Policy & Retrieval Internally) "]
-        LLM1 --> OUT1[" Unverified Output <br/>⚠️ Floating-Point Hallucinations <br/>⚠️ PII Leaks & Scope Bleed <br/>⚠️ Unhandled Upstream 5xx Crashes "]
+    subgraph UNMANAGED [" Standard LLM Pipeline "]
+        R1[" Ingress Request "] --> LLM_MONO[" Monolithic LLM Context <br/>(Model performs arithmetic, data retrieval, and scoping internally) "]
+        LLM_MONO --> OUT_MONO[" Output Text <br/>• Floating-point arithmetic drift <br/>• Scope leakage via prompt injection <br/>• Unhandled 429/5xx upstream exceptions "]
     end
 
-    subgraph ARBITER_MODEL [" ✅ Arbiter Multi-Agent Architecture (Deterministic Safety) "]
-        U2[" User Request "] --> SEC[" Security Preflight & Scope Closure "]
-        SEC --> ROUTER_NODE[" Semantic Router & Domain Agents <br/>(LLM: Interpretation Only) "]
-        ROUTER_NODE <--> TOOLS[" 24 Verified Deterministic Tools <br/>(100% Decimal Math & Isolated Datastore) "]
-        TOOLS --> SANITIZER[" Output Guard & PII Redactor "]
-        SANITIZER --> OUT2[" Verified AnswerSchema JSON <br/>✅ Penny-Perfect Accuracy <br/>✅ Enforced Client Scope <br/>✅ Guaranteed Schema Invariants "]
+    subgraph MANAGED [" Arbiter Multi-Agent Architecture "]
+        R2[" Ingress Request "] --> PRE[" Scope Preflight & Ingress Guard "]
+        PRE --> AGENT_TIER[" Multi-Agent Router & Specialists <br/>(LLM: Semantic QA & Routing Only) "]
+        AGENT_TIER <--> TOOL_TIER[" Tool Verification Layer <br/>• 24 Declarative Tool Schemas <br/>• 100% decimal.Decimal Math <br/>• Isolated In-Memory Ledger Store "]
+        TOOL_TIER --> SANITIZE[" Output Guard & PII Sanitizer "]
+        SANITIZE --> OUT_TYPED[" Typed AnswerSchema JSON <br/>• Exact numerical precision <br/>• Enforced tenant bounds <br/>• Deterministic refusal/abstention envelopes "]
     end
 
-    class U1,LLM1,OUT1 badStyle;
-    class U2,SEC,ROUTER_NODE,TOOLS,SANITIZER,OUT2 goodStyle;
+    class R1,LLM_MONO,OUT_MONO unmanagedStyle;
+    class R2,PRE,AGENT_TIER,TOOL_TIER,SANITIZE managedStyle;
+    class OUT_TYPED coreStyle;
 ```
 
-### Architectural Differentiation
+### Architectural Comparison
 
-| Domain | Generic LLM Chatbot | Arbiter Multi-Agent Platform |
+| Dimension | Conventional LLM Wrapper | Arbiter Implementation |
 | :--- | :--- | :--- |
-| **Financial Calculations** | ❌ Approximated by neural weights (floating-point drift & hallucinations) | ✅ **100% `decimal.Decimal` deterministic calculations in Python tools** |
-| **Multi-Agent Routing** | ❌ Single prompt with bloated system instructions | ✅ **Hub-and-spoke router with deterministic preflight & keyword overrides** |
-| **Tool Authorization** | ❌ Model calls tools arbitrarily without permission checks | ✅ **Authoritative registry (`TOOL_REGISTRY`) with explicit agent allowlists** |
-| **Multi-Tenant Isolation** | ❌ Vulnerable to prompt injection cross-client snooping | ✅ **Runtime context closures enforcing authorized `client_id` bounds** |
-| **Tool Schema Validation** | ❌ Unchecked JSON payload passed directly to backend | ✅ **Strict Pydantic argument schemas, ISO date parsing, and enum bounds** |
-| **PII & Data Redaction** | ❌ Raw PANs, bank accounts, and secrets logged in plaintext | ✅ **Automated regex redaction (`****249H`, `****9012`, `[REDACTED_SECRET]`)** |
-| **Injection Defense** | ❌ Fragile system prompt rules easily bypassed | ✅ **Deterministic ingress scanner + XML quarantine for external notes** |
-| **Refusal Semantics** | ❌ Ambiguous conversational apologies | ✅ **Formal contracts: `refused=True` for advice, `abstained=True` for missing data** |
-| **Reliability & Retries** | ❌ Unhandled 429/5xx exceptions crash user requests | ✅ **Classification-aware retry with exponential backoff & full jitter** |
-| **Cascading Protection** | ❌ Blindly hammers degraded upstream APIs | ✅ **State-machine Circuit Breaker (`CLOSED` $\to$ `OPEN` $\to$ `HALF_OPEN`)** |
-| **Service Boundary** | ❌ Ad-hoc scripts or unversioned endpoints | ✅ **Asynchronous FastAPI HTTP layer with request correlation IDs (`req_*`)** |
-| **Observability** | ❌ Unstructured print logs without performance attribution | ✅ **Monotonic microsecond profiling & sanitized JSONL trace collector** |
-| **Testing & Evals** | ❌ Manual spot checks on arbitrary queries | ✅ **45-case ground-truth benchmark suite with zero-drift offline runner** |
-| **Operations Interface** | ❌ Basic chat window without inspection tools | ✅ **9-screen React 19 / Vite console with live telemetry & trace inspection** |
+| **Arithmetic & Ledgers** | Computed via model token predictions; prone to floating-point rounding errors | Computed deterministically via Python `decimal.Decimal` over structured in-memory ledgers |
+| **Agent Topology** | Monolithic prompt with unstructured system instructions | Hub-and-spoke multi-agent routing with deterministic preflight and keyword overrides |
+| **Tool Authorization** | Model calls registered tools without authorization checks | Authoritative registry (`TOOL_REGISTRY`) with explicit agent allowlists |
+| **Tenant Isolation** | Soft filtering via system prompt instructions | Hard runtime context closures enforcing authorized `client_id` boundaries |
+| **Argument Validation** | Unchecked JSON payloads passed directly to underlying APIs | Strict Pydantic schemas validating types, ISO-8601 dates, and enum bounds |
+| **PII & Data Redaction** | Sensitive fields and credentials transmitted in plaintext | Automated regex redaction for PANs (`****249H`), bank accounts (`****9012`), and secrets |
+| **Indirect Injection** | External data injected directly into model context | External text isolated within `<untrusted_data>` XML tags with non-execution directives |
+| **Response Contract** | Unstructured conversational text apologies | Formal schema envelopes with explicit `refused` and `abstained` boolean fields |
+| **Transient Faults** | Uncaught 429/5xx HTTP exceptions crash the pipeline | Classification-aware retry engine with exponential backoff and randomized full jitter |
+| **Cascading Failures** | Unbounded retries against degraded upstream providers | 3-state Circuit Breaker (`CLOSED`, `OPEN`, `HALF_OPEN`) with 30s recovery cooldown |
+| **Service Boundary** | Ad-hoc scripts or unversioned endpoints | Asynchronous FastAPI service boundary with `X-Request-ID` correlation and worker threadpools |
+| **Telemetry & Tracing** | Unstructured console prints | Monotonic microsecond profiling with sanitized JSONL event sink and token cost accounting |
+| **Evaluation & CI** | Manual prompt spot-checking | 45-case ground-truth offline benchmark suite with zero-drift runner |
+| **Operations Interface** | Generic chat window without observability | 9-workspace React 19 / TypeScript console with live trace inspection |
 
 ---
 
