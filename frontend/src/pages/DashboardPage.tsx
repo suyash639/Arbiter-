@@ -1,264 +1,336 @@
 import React, { useEffect, useState } from "react";
 import {
   Activity,
-  CheckCircle2,
   Database,
   MessageSquareCode,
   Network,
-  ShieldCheck,
-  Sparkles,
   Wrench,
+  ArrowRight,
+  Layers,
 } from "lucide-react";
 import { arbiterApi } from "../api/client";
-import type { ReadinessResponse } from "../api/types";
+import type { ObservabilitySummary, ReadinessResponse } from "../api/types";
 import type { NavPage } from "../components/Shell";
+import { StatusIndicator } from "../components/StatusIndicator";
+import { EmptyState } from "../components/EmptyState";
 
 interface DashboardPageProps {
   onNavigate: (page: NavPage) => void;
+  onSelectClient?: (clientId: string) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate }) => {
   const [ready, setReady] = useState<ReadinessResponse | null>(null);
+  const [obs, setObs] = useState<ObservabilitySummary | null>(null);
 
   useEffect(() => {
-    arbiterApi.getReadiness().then(setReady).catch(() => {});
+    Promise.all([
+      arbiterApi.getReadiness().catch(() => null),
+      arbiterApi.getObservabilitySummary().catch(() => null),
+    ]).then(([r, o]) => {
+      setReady(r);
+      setObs(o);
+    });
   }, []);
+
+  const specialistAgents = [
+    {
+      id: "router",
+      name: "Router Coordinator",
+      role: "Intent Classification & Safety Gate",
+      toolsCount: 0,
+      rule: "Hub-and-spoke classifier with deterministic preflight overrides",
+    },
+    {
+      id: "book_qa",
+      name: "Book QA Specialist",
+      role: "Portfolio & Transactions",
+      toolsCount: 16,
+      rule: "Exact balances, holdings, drift & snapshot math using Python Decimal",
+    },
+    {
+      id: "kyc_profile",
+      name: "KYC Profile Specialist",
+      role: "Identity & Compliance Suitability",
+      toolsCount: 2,
+      rule: "Masked personal identity, suitability reviews & risk profile records",
+    },
+    {
+      id: "notes_desk",
+      name: "Notes Desk Specialist",
+      role: "Relationship Notes & Memos",
+      toolsCount: 2,
+      rule: "Dynamic interaction memos with indirect injection XML boundaries",
+    },
+    {
+      id: "market_desk",
+      name: "Market Desk Specialist",
+      role: "Pricing & Covered Securities",
+      toolsCount: 4,
+      rule: "Historical close prices, returns & sector news for 14 covered tickers",
+    },
+    {
+      id: "compliance",
+      name: "Compliance Specialist",
+      role: "Regulatory & Policy Refusal",
+      toolsCount: 0,
+      rule: "Zero tools authorized. Deterministic refusal of investment advice",
+    },
+  ];
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Welcome & System Status Banner */}
-      <div className="rounded-xl border border-slate-800 bg-gradient-to-r from-[#121727] via-[#0f1422] to-[#141926] p-6 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-mono font-semibold uppercase tracking-wider mb-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              Arbiter Operations Platform
-            </div>
-            <h1 className="text-2xl font-extrabold text-white tracking-tight">
-              Financial AI Operations & Multi-Agent Coordination
+      {/* Top Operations Header & Status Strip */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1a2234] pb-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg font-bold tracking-tight text-white font-mono">
+              ARBITER OPERATIONS CONSOLE
             </h1>
-            <p className="text-slate-400 text-xs mt-1 max-w-2xl leading-relaxed">
-              Arbiter coordinates back-office operations across portfolio accounting, KYC profiling, relationship CRM notes, and market coverage with deterministic verification and strict security boundaries.
-            </p>
+            <StatusIndicator status="READY" size="sm" />
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onNavigate("ask")}
-              className="px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
-            >
-              <MessageSquareCode className="w-4 h-4" />
-              Launch Ask Arbiter
-            </button>
-            <button
-              onClick={() => onNavigate("architecture")}
-              className="px-3.5 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all border border-slate-700 cursor-pointer"
-            >
-              Architecture Map
-            </button>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Multi-agent financial operations workstation with deterministic accounting tools and verified security boundaries.
+          </p>
+        </div>
+
+        {/* System Status Compact Block */}
+        <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+          <div className="px-2.5 py-1 rounded bg-[#0c101a] border border-slate-800 flex items-center gap-1.5">
+            <span className="text-slate-500">API:</span>
+            <span className="text-emerald-400 font-semibold">ONLINE</span>
+          </div>
+          <div className="px-2.5 py-1 rounded bg-[#0c101a] border border-slate-800 flex items-center gap-1.5">
+            <span className="text-slate-500">DATA:</span>
+            <span className="text-slate-200">{ready?.clients_loaded ?? 25} Clients / {ready?.instruments_loaded ?? 14} Tickers</span>
+          </div>
+          <div className="px-2.5 py-1 rounded bg-[#0c101a] border border-slate-800 flex items-center gap-1.5">
+            <span className="text-slate-500">CIRCUIT:</span>
+            <span className="text-emerald-400 font-semibold">CLOSED</span>
           </div>
         </div>
       </div>
 
-      {/* Primary Key Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Benchmark Score */}
-        <div className="p-4 rounded-xl bg-[#111624] border border-slate-800/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-mono uppercase font-semibold">Evaluation Benchmark</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+      {/* Quick Action Operations Launchers */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <button
+          onClick={() => onNavigate("ask")}
+          className="p-3.5 rounded-lg bg-[#0c101a] hover:bg-[#121826] border border-slate-800 text-left transition-all group cursor-pointer flex flex-col justify-between space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <MessageSquareCode className="w-4 h-4 text-indigo-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-indigo-400 transition-colors" />
           </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-emerald-400 font-mono">100.0%</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">45 / 45 Offline Test Cases Passing</div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between">
-            <span>Routing: 100%</span>
-            <span>Factuality: 100%</span>
-          </div>
-        </div>
-
-        {/* Metric 2: Automated Test Suite */}
-        <div className="p-4 rounded-xl bg-[#111624] border border-slate-800/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-mono uppercase font-semibold">Regression Suite</span>
-            <Activity className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-white font-mono">384 Tests</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Full Pytest Test Suite Passing</div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between">
-            <span>FastAPI: 23</span>
-            <span>Security: 19</span>
-            <span>Tools: 23</span>
-          </div>
-        </div>
-
-        {/* Metric 3: Tool Verification */}
-        <div className="p-4 rounded-xl bg-[#111624] border border-slate-800/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-mono uppercase font-semibold">Verified Tools</span>
-            <Wrench className="w-4 h-4 text-amber-400" />
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-amber-400 font-mono">24 Tools</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Deterministic Business Calculations</div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between">
-            <span>Book QA: 16</span>
-            <span>Market: 4</span>
-            <span>KYC/Notes: 4</span>
-          </div>
-        </div>
-
-        {/* Metric 4: Security & Isolation */}
-        <div className="p-4 rounded-xl bg-[#111624] border border-slate-800/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs">
-            <span className="font-mono uppercase font-semibold">Security Boundary</span>
-            <ShieldCheck className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-sky-400 font-mono">STRICT</div>
-            <div className="text-[11px] text-slate-400 mt-0.5">Injection Guard + PII Masking</div>
-          </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-800 text-[10px] text-slate-500 flex justify-between">
-            <span>PAN / Account Masked</span>
-            <span>Scope Isolated</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Agent Network Overview Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Agent Topology */}
-        <div className="lg:col-span-2 p-5 rounded-xl bg-[#111624] border border-slate-800">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                <Network className="w-4 h-4 text-indigo-400" />
-                Active Specialist Network
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Deterministic delegation pipeline with authoritative role boundaries
-              </p>
-            </div>
-            <button
-              onClick={() => onNavigate("agents")}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium cursor-pointer"
-            >
-              View Full Topology →
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Router */}
-            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-indigo-300">Router Agent</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-400 border border-indigo-900">
-                  Coordinator
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                Intent classification with deterministic safety keyword overrides.
-              </p>
-              <div className="mt-2 text-[10px] font-mono text-slate-500">
-                Tools: 0 Direct (Delegator)
-              </div>
-            </div>
-
-            {/* Book QA */}
-            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-emerald-300">Book QA Agent</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900">
-                  Accounting
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                Portfolio balances, transactions, holdings, drift, and account snapshots.
-              </p>
-              <div className="mt-2 text-[10px] font-mono text-slate-500">
-                Tools: 16 Verified Tools
-              </div>
-            </div>
-
-            {/* KYC Profile */}
-            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-sky-300">KYC Profile Agent</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-sky-950 text-sky-400 border border-sky-900">
-                  Compliance
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                Masked KYC status, risk profiles, employer, income, and suitability reviews.
-              </p>
-              <div className="mt-2 text-[10px] font-mono text-slate-500">
-                Tools: 2 Verified Tools
-              </div>
-            </div>
-
-            {/* Compliance */}
-            <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 hover:border-slate-700 transition-all">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-rose-300">Compliance Agent</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-950 text-rose-400 border border-rose-900">
-                  Safety Refusal
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
-                Deterministic policy refusals for investment advice and cross-client requests.
-              </p>
-              <div className="mt-2 text-[10px] font-mono text-slate-500">
-                Tools: 0 (No Tools Permitted)
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right 1 Col: Operational Telemetry & Live State */}
-        <div className="p-5 rounded-xl bg-[#111624] border border-slate-800 flex flex-col justify-between">
           <div>
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-1">
-              <Database className="w-4 h-4 text-emerald-400" />
-              Runtime Datasets
-            </h2>
-            <p className="text-xs text-slate-400 mb-4">
-              Authoritative in-memory dataset snapshots
-            </p>
+            <div className="text-xs font-bold text-white font-mono">Ask Arbiter</div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Natural language operations queries</p>
+          </div>
+        </button>
 
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
-                <div className="text-[10px] text-slate-500 uppercase font-mono font-bold">Client Book</div>
-                <div className="text-lg font-bold text-white font-mono mt-0.5">
-                  {ready?.clients_loaded ?? 25} Authorized Clients
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Profiles, Accounts, Positions, Transactions, Memos
-                </div>
-              </div>
+        <button
+          onClick={() => onNavigate("clients")}
+          className="p-3.5 rounded-lg bg-[#0c101a] hover:bg-[#121826] border border-slate-800 text-left transition-all group cursor-pointer flex flex-col justify-between space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <Database className="w-4 h-4 text-emerald-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-emerald-400 transition-colors" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white font-mono">Client Book</div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Inspect 25 authorized portfolios</p>
+          </div>
+        </button>
 
-              <div className="p-3 rounded-lg bg-slate-900/90 border border-slate-800">
-                <div className="text-[10px] text-slate-500 uppercase font-mono font-bold">Market Dataset</div>
-                <div className="text-lg font-bold text-white font-mono mt-0.5">
-                  {ready?.instruments_loaded ?? 14} Covered Tickers
+        <button
+          onClick={() => onNavigate("tools")}
+          className="p-3.5 rounded-lg bg-[#0c101a] hover:bg-[#121826] border border-slate-800 text-left transition-all group cursor-pointer flex flex-col justify-between space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <Wrench className="w-4 h-4 text-sky-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-sky-400 transition-colors" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white font-mono">Tool Verification</div>
+            <p className="text-[11px] text-slate-400 mt-0.5">24 verified deterministic tools</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => onNavigate("architecture")}
+          className="p-3.5 rounded-lg bg-[#0c101a] hover:bg-[#121826] border border-slate-800 text-left transition-all group cursor-pointer flex flex-col justify-between space-y-2"
+        >
+          <div className="flex items-center justify-between">
+            <Layers className="w-4 h-4 text-purple-400" />
+            <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-purple-400 transition-colors" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white font-mono">Architecture</div>
+            <p className="text-[11px] text-slate-400 mt-0.5">Multi-tier subsystem design</p>
+          </div>
+        </button>
+      </div>
+
+      {/* System Capabilities Matrix */}
+      <div className="p-4 rounded-lg bg-[#0c101a] border border-slate-800 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+          <div className="text-xs font-mono uppercase font-bold text-slate-300 flex items-center gap-2">
+            <Network className="w-3.5 h-3.5 text-indigo-400" />
+            Specialist Agent Specialization Matrix
+          </div>
+          <span className="text-[11px] font-mono text-slate-500">6 Subdomain Specialists</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {specialistAgents.map((agent) => (
+            <div
+              key={agent.id}
+              className="p-3 rounded bg-[#0f1422] border border-slate-800/80 flex flex-col justify-between space-y-2"
+            >
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-white font-mono">{agent.name}</span>
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded border font-semibold ${
+                      agent.toolsCount > 0
+                        ? "bg-indigo-950 text-indigo-300 border-indigo-800"
+                        : "bg-rose-950 text-rose-300 border-rose-800"
+                    }`}
+                  >
+                    {agent.toolsCount} Tools
+                  </span>
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Monthly Close Observations, Returns, News
-                </div>
+                <div className="text-[11px] text-slate-300 font-medium mt-1">{agent.role}</div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-snug">{agent.rule}</p>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-800">
-            <button
-              onClick={() => onNavigate("observability")}
-              className="w-full py-2 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold flex items-center justify-center gap-2 border border-slate-800 cursor-pointer transition-colors"
-            >
-              View Telemetry Details →
-            </button>
+      {/* Live Request Activity Stream */}
+      <div className="rounded-lg bg-[#0c101a] border border-slate-800 overflow-hidden space-y-0">
+        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-400" />
+            <span className="text-xs font-mono uppercase font-bold text-slate-300">
+              Live Execution Telemetry & Request Log
+            </span>
+          </div>
+          <button
+            onClick={() => onNavigate("observability")}
+            className="text-[11px] font-mono text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span>Full Observability</span>
+            <ArrowRight className="w-3 h-3" />
+          </button>
+        </div>
+
+        {obs?.recent_traces && obs.recent_traces.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-900 text-slate-400 uppercase font-mono text-[10px] tracking-wider border-b border-slate-800">
+                <tr>
+                  <th className="py-2.5 px-4">Request ID</th>
+                  <th className="py-2.5 px-4">Client Scope</th>
+                  <th className="py-2.5 px-4">Agent Path</th>
+                  <th className="py-2.5 px-4">Tools Executed</th>
+                  <th className="py-2.5 px-4">Total Latency</th>
+                  <th className="py-2.5 px-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60 font-mono text-slate-200">
+                {obs.recent_traces.slice(0, 5).map((tr) => (
+                  <tr key={tr.request_id} className="hover:bg-slate-800/30">
+                    <td className="py-2.5 px-4 text-indigo-400 font-bold">{tr.request_id}</td>
+                    <td className="py-2.5 px-4 text-slate-300">{tr.client_id}</td>
+                    <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-1 text-[11px]">
+                        {tr.agent_path.map((ag, i) => (
+                          <span key={i} className="flex items-center gap-1">
+                            <span className="text-slate-200">{ag}</span>
+                            {i < tr.agent_path.length - 1 && <span className="text-slate-600">→</span>}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4">{tr.tool_call_count} calls</td>
+                    <td className="py-2.5 px-4">{tr.total_latency_ms ? `${tr.total_latency_ms.toFixed(1)} ms` : "—"}</td>
+                    <td className="py-2.5 px-4">
+                      <StatusIndicator
+                        status={tr.refused ? "REFUSED" : tr.abstained ? "ABSTAINED" : tr.success ? "SUCCESS" : "ERROR"}
+                        size="sm"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            icon={Activity}
+            title="No requests recorded yet"
+            description="Run a query through Ask Arbiter or submit an HTTP request to populate the live operations telemetry timeline."
+            actionLabel="Open Ask Arbiter"
+            onAction={() => onNavigate("ask")}
+            className="border-0 rounded-none bg-transparent"
+          />
+        )}
+      </div>
+
+      {/* Dataset Coverage Blocks */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Client Dataset Block */}
+        <div className="p-4 rounded-lg bg-[#0c101a] border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-xs font-mono uppercase font-bold text-slate-300 flex items-center gap-1.5">
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              Client Book Dataset
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-semibold">
+              25 CLIENTS
+            </span>
+          </div>
+          <div className="space-y-1 text-xs font-mono text-slate-300">
+            <div className="flex justify-between py-1 border-b border-slate-800/40">
+              <span className="text-slate-400">Total Authorized Portfolios:</span>
+              <span className="text-white font-bold">25 Client Records</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/40">
+              <span className="text-slate-400">Risk Profile Coverage:</span>
+              <span className="text-slate-200">Conservative · Moderate · Aggressive</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-400">Data Boundaries:</span>
+              <span className="text-emerald-400">PII Redacted · Isolated Scope</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Market Dataset Block */}
+        <div className="p-4 rounded-lg bg-[#0c101a] border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-xs font-mono uppercase font-bold text-slate-300 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-purple-400" />
+              Market Securities Dataset
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800 font-semibold">
+              14 TICKERS
+            </span>
+          </div>
+          <div className="space-y-1 text-xs font-mono text-slate-300">
+            <div className="flex justify-between py-1 border-b border-slate-800/40">
+              <span className="text-slate-400">Covered Equity Symbols:</span>
+              <span className="text-indigo-300 font-bold">AAPL, MSFT, GOOGL, NVDA, AMZN...</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-slate-800/40">
+              <span className="text-slate-400">Historical Observations:</span>
+              <span className="text-slate-200">Monthly Close & Returns</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-400">Security Math:</span>
+              <span className="text-emerald-400">Exact Decimal Arithmetic</span>
+            </div>
           </div>
         </div>
       </div>

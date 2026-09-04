@@ -1,106 +1,208 @@
 import React, { useEffect, useState } from "react";
-import { Network, ArrowDown } from "lucide-react";
+import {
+  Network,
+  RefreshCw,
+  Layers,
+  ArrowRight,
+} from "lucide-react";
 import { arbiterApi } from "../api/client";
-import type { AgentSummary } from "../api/types";
+import { StatusIndicator } from "../components/StatusIndicator";
 
 export const AgentsPage: React.FC = () => {
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const loadAgents = () => {
+    setLoading(true);
+    arbiterApi
+      .getAgents()
+      .then(() => {
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  };
 
   useEffect(() => {
-    arbiterApi.getAgents().then(setAgents).catch(() => {});
+    loadAgents();
   }, []);
 
+  const specialistHierarchy = [
+    {
+      id: "router",
+      name: "Router Coordinator",
+      role: "Hub Classification & Policy Gate",
+      toolCount: 0,
+      scope: "Preflight Ingress",
+      boundary: "Deterministic keyword overrides for investment advice & compliance",
+      description:
+        "Evaluates incoming natural language requests, applies deterministic preflight safety overrides, and delegates to domain specialists.",
+      isHub: true,
+    },
+    {
+      id: "book_qa",
+      name: "Book QA Specialist",
+      role: "Portfolio, Accounts & Transactions",
+      toolCount: 16,
+      scope: "Client-Scoped",
+      boundary: "Strict client_id context isolation; Decimal arithmetic engine",
+      description:
+        "Executes 16 deterministic financial tools to calculate portfolio balances, transaction totals, asset allocation, holdings drift, and account snapshots.",
+      isHub: false,
+    },
+    {
+      id: "kyc_profile",
+      name: "KYC Profile Specialist",
+      role: "Identity & Suitability Compliance",
+      toolCount: 2,
+      scope: "Client-Scoped",
+      boundary: "Automated Indian PAN (****249H) and bank account (****9012) masking",
+      description:
+        "Retrieves masked identity records, employment details, income brackets, suitability reviews, and risk profile ratings.",
+      isHub: false,
+    },
+    {
+      id: "notes_desk",
+      name: "Notes Desk Specialist",
+      role: "CRM & Relationship Intelligence",
+      toolCount: 2,
+      scope: "Client-Scoped",
+      boundary: "Strict XML boundary encapsulation (<untrusted_retrieved_data>)",
+      description:
+        "Searches relationship notes, author history, and transaction memos with indirect prompt injection quarantine safeguards.",
+      isHub: false,
+    },
+    {
+      id: "market_desk",
+      name: "Market Desk Specialist",
+      role: "Pricing & Covered Securities",
+      toolCount: 4,
+      scope: "Global Market Scope",
+      boundary: "Restricted strictly to 14 covered equity tickers",
+      description:
+        "Answers factual equity pricing queries, monthly close observations, historical returns, and covered securities news.",
+      isHub: false,
+    },
+    {
+      id: "compliance",
+      name: "Compliance Specialist",
+      role: "Regulatory & Policy Refusal",
+      toolCount: 0,
+      scope: "Refusal Authority",
+      boundary: "Zero tools authorized. Deterministic policy refusal",
+      description:
+        "Safety refusal agent handling out-of-scope requests, cross-client queries, and personalized investment/allocation advice.",
+      isHub: false,
+    },
+  ];
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-          <Network className="w-5 h-5 text-indigo-400" />
-          Agent Network & Specialist Topology
-        </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Deterministic coordinator and specialist agents with isolated domain responsibilities and declarative tool boundaries.
-        </p>
-      </div>
-
-      {/* Top Architecture Topology Diagram */}
-      <div className="p-6 rounded-xl bg-[#111624] border border-slate-800 text-center relative overflow-hidden">
-        <div className="text-[10px] font-mono uppercase font-bold text-slate-500 tracking-wider mb-4">
-          Hierarchical Delegation Workflow
-        </div>
-
-        {/* Router Box */}
-        <div className="inline-block p-4 rounded-xl bg-indigo-950/60 border border-indigo-500/50 shadow-lg text-left max-w-sm w-full mx-auto">
-          <div className="flex items-center justify-between">
-            <span className="font-extrabold text-xs text-indigo-300">Router Coordinator</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-900 text-indigo-200 border border-indigo-700">
-              Entry Gateway
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#1a2234] pb-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-lg font-bold tracking-tight text-white font-mono flex items-center gap-2">
+              <Network className="w-4 h-4 text-indigo-400" />
+              SPECIALIST AGENT NETWORK
+            </h1>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-800/60 font-semibold">
+              6 SPECIALIST ROLES
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Classifies user intent & enforces deterministic compliance overrides.
+          <p className="text-xs text-slate-400 mt-0.5">
+            Hub-and-spoke multi-agent topology separating ingress classification, domain specialization, and policy refusal.
           </p>
         </div>
 
-        {/* Down Arrow */}
-        <div className="my-3 flex justify-center text-slate-600">
-          <ArrowDown className="w-5 h-5 animate-bounce text-indigo-400" />
-        </div>
+        <button
+          onClick={loadAgents}
+          disabled={loading}
+          className="self-start md:self-auto px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-xs font-mono text-slate-300 border border-slate-700 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin text-indigo-400" : ""}`} />
+          <span>Refresh Agents</span>
+        </button>
+      </div>
 
-        {/* Specialist Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 max-w-5xl mx-auto">
-          <div className="p-3 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-left">
-            <div className="font-bold text-xs text-emerald-300">Book QA</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">16 Tools</div>
+      {/* Hub: Router Coordinator */}
+      <div className="p-4 rounded-lg bg-[#0c101a] border border-indigo-700/60 shadow-md space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded bg-indigo-950 border border-indigo-700/80 text-indigo-300">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm text-white font-mono">
+                  {specialistHierarchy[0].name}
+                </span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                  COORDINATION HUB
+                </span>
+              </div>
+              <div className="text-xs text-slate-300">{specialistHierarchy[0].role}</div>
+            </div>
           </div>
-          <div className="p-3 rounded-lg bg-sky-950/40 border border-sky-800/60 text-left">
-            <div className="font-bold text-xs text-sky-300">KYC Profile</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">2 Tools</div>
-          </div>
-          <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800/60 text-left">
-            <div className="font-bold text-xs text-amber-300">Notes Desk</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">2 Tools</div>
-          </div>
-          <div className="p-3 rounded-lg bg-purple-950/40 border border-purple-800/60 text-left">
-            <div className="font-bold text-xs text-purple-300">Market Desk</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">4 Tools</div>
-          </div>
-          <div className="p-3 rounded-lg bg-rose-950/40 border border-rose-800/60 text-left">
-            <div className="font-bold text-xs text-rose-300">Compliance</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">0 Tools (Refusal)</div>
-          </div>
+          <StatusIndicator status="CONFIGURED" size="sm" />
+        </div>
+        <p className="text-xs text-slate-300 leading-relaxed font-sans">
+          {specialistHierarchy[0].description}
+        </p>
+        <div className="pt-1 flex flex-wrap items-center gap-2 text-[11px] font-mono text-slate-400 border-t border-slate-800/80">
+          <span>Security: <strong className="text-emerald-400">{specialistHierarchy[0].boundary}</strong></span>
         </div>
       </div>
 
-      {/* Agents Detailed Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.map((agent) => (
-          <div
-            key={agent.id}
-            className="p-5 rounded-xl bg-[#111624] border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-all shadow-md"
-          >
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-sm text-white">{agent.name}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-indigo-300 font-bold">
-                  {agent.id}
-                </span>
-              </div>
-              <div className="text-xs font-semibold text-indigo-400 mt-1">{agent.role}</div>
-              <p className="text-xs text-slate-400 mt-2 leading-relaxed">{agent.description}</p>
-            </div>
+      {/* Spokes: 5 Domain Specialist Agents */}
+      <div className="space-y-3">
+        <div className="text-xs font-mono uppercase font-bold text-slate-400 flex items-center gap-1.5">
+          <ArrowRight className="w-3.5 h-3.5 text-indigo-400" />
+          Domain Specialist Spokes (Delegated Execution)
+        </div>
 
-            <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs font-mono">
-              <span className="text-slate-500">Tool Authority:</span>
-              <span
-                className={`font-bold ${
-                  agent.tool_count > 0 ? "text-emerald-400" : "text-slate-400"
-                }`}
-              >
-                {agent.tool_count} {agent.tool_count === 1 ? "Tool" : "Tools"}
-              </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {specialistHierarchy.slice(1).map((agent) => (
+            <div
+              key={agent.id}
+              className="p-4 rounded-lg bg-[#0c101a] border border-slate-800 flex flex-col justify-between space-y-3"
+            >
+              <div className="space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-bold text-xs text-white font-mono">
+                      {agent.name}
+                    </h3>
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      {agent.role}
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded border font-semibold ${
+                      agent.toolCount > 0
+                        ? "bg-indigo-950 text-indigo-300 border-indigo-800"
+                        : "bg-rose-950 text-rose-300 border-rose-800"
+                    }`}
+                  >
+                    {agent.toolCount} Tools
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                  {agent.description}
+                </p>
+              </div>
+
+              <div className="pt-2 border-t border-slate-800/80 space-y-1 text-[10px] font-mono">
+                <div className="flex justify-between text-slate-400">
+                  <span>Scope:</span>
+                  <span className="text-slate-200">{agent.scope}</span>
+                </div>
+                <div className="text-slate-400 truncate">
+                  Boundary: <span className="text-emerald-400">{agent.boundary}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

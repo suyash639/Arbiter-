@@ -24,8 +24,8 @@ describe("Arbiter API Client Tests", () => {
       status: "ready",
       clients_loaded: 25,
       instruments_loaded: 14,
-      llm_provider: "valura",
-      llm_model: "valura-fast",
+      llm_provider: "gemini",
+      llm_model: "gemini-3.6-flash",
     };
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -35,6 +35,7 @@ describe("Arbiter API Client Tests", () => {
     const result = await arbiterApi.getReadiness();
     expect(result.status).toBe("ready");
     expect(result.clients_loaded).toBe(25);
+    expect(result.llm_model).toBe("gemini-3.6-flash");
   });
 
   it("submits query with client context and returns structured answer", async () => {

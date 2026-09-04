@@ -1,11 +1,9 @@
-import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { App } from "../App";
 import { StatusBadge } from "../components/StatusBadge";
 import { AskArbiterPage } from "../pages/AskArbiterPage";
 import { ClientsPage } from "../pages/ClientsPage";
-import { arbiterApi } from "../api/client";
 
 // Mock API client
 vi.mock("../api/client", () => ({
@@ -15,8 +13,8 @@ vi.mock("../api/client", () => ({
       status: "ready",
       clients_loaded: 25,
       instruments_loaded: 14,
-      llm_provider: "valura",
-      llm_model: "valura-fast",
+      llm_provider: "gemini",
+      llm_model: "gemini-3.6-flash",
     }),
     getClients: vi.fn().mockResolvedValue([
       {
@@ -92,18 +90,18 @@ describe("Arbiter Frontend Component & Shell Tests", () => {
   it("renders global application shell and navigation items", async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByText("ARBITER")).toBeInTheDocument();
-      expect(screen.getByText("Dashboard")).toBeInTheDocument();
-      expect(screen.getByText("Ask Arbiter")).toBeInTheDocument();
-      expect(screen.getByText("Clients Book")).toBeInTheDocument();
+      expect(screen.getAllByText("ARBITER").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Console Overview")).toBeInTheDocument();
+      expect(screen.getAllByText("Ask Arbiter").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("Client Book").length).toBeGreaterThanOrEqual(1);
     });
   });
 
   it("navigates between views when clicking sidebar tabs", async () => {
     render(<App />);
-    const toolsTab = screen.getByText("Tool Verification");
-    fireEvent.click(toolsTab);
-    expect(await screen.findByText("Verified Tool Registry (24 Deterministic Tools)")).toBeInTheDocument();
+    const toolsTabs = screen.getAllByText("Tool Verification");
+    fireEvent.click(toolsTabs[0]);
+    expect(await screen.findByText(/Verified Tool Registry/i)).toBeInTheDocument();
   });
 
   it("renders StatusBadge with appropriate visual statuses", () => {
@@ -114,7 +112,7 @@ describe("Arbiter Frontend Component & Shell Tests", () => {
     expect(screen.getByText("POLICY REFUSED")).toBeInTheDocument();
 
     rerender(<StatusBadge abstained={true} refused={false} />);
-    expect(screen.getByText("DATA ABSTAINED")).toBeInTheDocument();
+    expect(screen.getByText("ABSTAINED")).toBeInTheDocument();
 
     rerender(<StatusBadge abstained={true} refused={false} flags={["upstream_issue"]} />);
     expect(screen.getByText("UPSTREAM FALLBACK")).toBeInTheDocument();
@@ -130,14 +128,14 @@ describe("Arbiter Frontend Component & Shell Tests", () => {
     expect(screen.getByText("req_test_abc")).toBeInTheDocument();
   });
 
-  it("selects client in ClientsPage and displays masked metadata", async () => {
+  it("selects client in ClientsPage and displays authorized metadata", async () => {
     const onSelect = vi.fn();
     const onNav = vi.fn();
     render(<ClientsPage onSelectClient={onSelect} onNavigate={onNav} />);
 
     expect(await screen.findByText("cli_1014")).toBeInTheDocument();
     expect(screen.getByText("Test Client")).toBeInTheDocument();
-    expect(screen.getByText("PII MASKED")).toBeInTheDocument();
+    expect(screen.getByText(/Cross-Client Isolation/i)).toBeInTheDocument();
 
     const queryBtn = screen.getByRole("button", { name: /query/i });
     fireEvent.click(queryBtn);
